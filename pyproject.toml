@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-sidecar"
+version = "0.1.0"
+description = "SLURM job-lifecycle sidecar: wrap srun, collect process/SLURM/MPI evidence"
+requires-python = ">=3.10"
+readme = "README.md"
+dependencies = []
+
+[project.optional-dependencies]
+plot = ["matplotlib"]
+
+[project.scripts]
+agent = "agent_sidecar.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
