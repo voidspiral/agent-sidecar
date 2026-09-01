@@ -1,0 +1,31 @@
+schema: spec-driven
+
+context: |
+  Standalone HPC SLURM sidecar agent (this repo). Not ClusterHelm.
+  ClusterHelm control plane (Master/Slave, workflow_runner, partition_report,
+  submit/wait, preflight) has no architectural reference value and must not be
+  reused, adapted, or treated as a consumer. Only independent tool implementations
+  may be referenced: mpi-monitor (process JSONL/PNG), memmon (node memory/OOM),
+  nodestatus probe techniques (folded into node-diag).
+  Tech stack: Python 3.10+, stdlib first; matplotlib optional for PNG plots.
+  TDD: write failing tests before implementation (unittest).
+  design.md body stays English. Propose-stage replies include a Chinese translation of design.md.
+  No hardcoded user home paths. Config and CLI flags only.
+  Compute nodes may lack a deployed copy of this package; remote sampling uses
+  an inline payload, srun fetch, or SSH.
+  Sidecars follow the job: start with the allocation, stop when the job ends.
+  LLM must not scrape /proc as the primary collector; node tools collect first.
+  Default placement is tools-only; node-assist and job-assist are optional.
+
+rules:
+  proposal:
+    - Always include a "Non-goals" section
+    - Explicitly exclude ClusterHelm control-plane integration
+  design:
+    - Keep the design.md body in English
+    - Record TDD as the implementation method
+  tasks:
+    - Order work as failing tests first, then implementation
+    - Break tasks into chunks of max 2 hours
+    - Mark SPANK, automatic remediate, and ClusterHelm adapter as out of phase 1
+    - Do not include ClusterHelm adapter tasks
