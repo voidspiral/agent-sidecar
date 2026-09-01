@@ -38,6 +38,7 @@ def plan_overlap(
         "--ntasks-per-node=1",
         "--exact",
         f"--mem={mem}",
+        "-l",
         *supervisor_argv,
     ]
     user = [srun, *passthrough]

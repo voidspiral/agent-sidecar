@@ -12,9 +12,10 @@ KNOWN_AGENT_FLAGS = {
     "agent-node-llm",
     "agent-launcher",
     "agent-hosts",
+    "agent-verbose",
 }
 
-BOOLEAN_AGENT_FLAGS = {"agent-node-llm"}
+BOOLEAN_AGENT_FLAGS = {"agent-node-llm", "agent-verbose"}
 
 PROFILES = frozenset({"tools-only", "node-assist", "job-assist"})
 
@@ -31,6 +32,7 @@ class AgentOptions:
     skills: tuple[str, ...] = ()
     output_dir: str | None = None
     node_llm: bool = False
+    verbose: bool = False
     launcher: str | None = None
     hosts: str | None = None
 
@@ -94,6 +96,8 @@ def _assign(options: AgentOptions, name: str, value: str, *, present: bool) -> N
         options.output_dir = value
     elif name == "agent-node-llm":
         options.node_llm = present
+    elif name == "agent-verbose":
+        options.verbose = present
     elif name == "agent-launcher":
         options.launcher = value
     elif name == "agent-hosts":

@@ -5,8 +5,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from agent_sidecar.argv import AgentParseError, apply_profile_defaults, parse_agent_argv
@@ -28,8 +30,69 @@ PLUGIN_FACTORIES = {
 }
 
 
+def _log(msg: str) -> None:
+    print(f"[agent] {msg}", flush=True)
+
+
 def _spawn(argv: list[str]) -> int:
     return subprocess.call(argv)
+
+
+def cmd_srun(parsed, *, run_sidecar=None, run_user=None, overlap_ok: bool = True) -> int:
+    verbose = parsed.options.verbose or os.environ.get("AGENT_VERBOSE") == "1"
+    holder: dict[str, subprocess.Popen[str]] = {}
+
+    def default_sidecar(argv: list[str]) -> int:
+        if verbose:
+            _log("start sidecar step: " + " ".join(argv))
+        proc = subprocess.Popen(argv)
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            rc = proc.poll()
+            if rc is not None:
+                if verbose:
+                    _log(f"sidecar step exited immediately rc={rc}")
+                return rc
+            time.sleep(0.2)
+        holder["proc"] = proc
+        if verbose:
+            _log(f"sidecar is running (pid={proc.pid})")
+        return 0
+
+    def default_user(argv: list[str]) -> int:
+        if verbose:
+            _log("start user step: " + " ".join(argv))
+        return subprocess.call(argv)
+
+    if verbose:
+        _log(f"profile={parsed.options.profile} skills={parsed.options.skills or ('proc-monitor',)}")
+        _log("passthrough=" + " ".join(parsed.passthrough))
+
+    code, run_dir, plan = wrap_srun(
+        parsed,
+        env=dict(os.environ),
+        run_sidecar=run_sidecar or default_sidecar,
+        run_user=run_user or default_user,
+        overlap_ok=overlap_ok,
+    )
+    proc = holder.get("proc")
+    if proc is not None:
+        if verbose:
+            _log(f"stop sidecar (pid={proc.pid})")
+        proc.terminate()
+        try:
+            proc.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=5)
+    if verbose:
+        _log(f"mode={plan.mode} fallback={plan.fallback_used} user_exit={code}")
+        _log(f"run_dir={run_dir}")
+        tel = run_dir / "telemetry.json"
+        if tel.is_file():
+            _log("telemetry.json:")
+            print(tel.read_text(encoding="utf-8"), flush=True)
+    return code
 
 
 def _plugins_for(skills: tuple[str, ...]) -> list:
@@ -41,17 +104,6 @@ def _plugins_for(skills: tuple[str, ...]) -> list:
             raise AgentParseError(f"unknown skill: {name}")
         plugins.append(factory())
     return plugins
-
-
-def cmd_srun(parsed, *, run_sidecar=None, run_user=None, overlap_ok: bool = True) -> int:
-    code, _run_dir, _plan = wrap_srun(
-        parsed,
-        env=dict(os.environ),
-        run_sidecar=run_sidecar or _spawn,
-        run_user=run_user or _spawn,
-        overlap_ok=overlap_ok,
-    )
-    return code
 
 
 def cmd_sbatch(parsed) -> int:
@@ -102,10 +154,29 @@ def cmd_supervisor(argv: list[str]) -> int:
     p.add_argument("--host", default=os.uname().nodename.split(".")[0])
     p.add_argument("--output-dir", required=True, type=Path)
     p.add_argument("--skills", default="proc-monitor")
+    p.add_argument("--once", action="store_true", help="start plugins and exit (tests)")
     ns = p.parse_args(argv)
     skills = tuple(s for s in ns.skills.split(",") if s)
     ctx = JobContext(job_id=ns.job_id, host=ns.host, output_dir=ns.output_dir)
-    start_supervisor(ns.job_id, ns.host, _plugins_for(skills), ctx)
+    print(
+        f"[sidecar] host={ns.host} job={ns.job_id} pid={os.getpid()} skills={','.join(skills)}",
+        flush=True,
+    )
+    sup = start_supervisor(ns.job_id, ns.host, _plugins_for(skills), ctx)
+    if ns.once:
+        return 0
+    stop = {"n": False}
+
+    def _handle(signum: int, _frame: object) -> None:
+        print(f"[sidecar] host={ns.host} got signal {signum}, stopping", flush=True)
+        stop["n"] = True
+
+    signal.signal(signal.SIGTERM, _handle)
+    signal.signal(signal.SIGINT, _handle)
+    while not stop["n"]:
+        time.sleep(0.2)
+    sup.stop()
+    print(f"[sidecar] host={ns.host} stopped", flush=True)
     return 0
 
 

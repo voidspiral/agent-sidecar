@@ -7,6 +7,8 @@ from pathlib import Path as _Path
 
 sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "src"))
 
+import contextlib
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -55,6 +57,32 @@ class TestCli(unittest.TestCase):
             self.assertIn("true", seen["user"])
             self.assertNotIn("--agent-profile=tools-only", seen["user"])
 
+    def test_verbose_prints_launch_trace(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            parsed = parse_agent_argv(
+                [
+                    "srun",
+                    "--agent-verbose",
+                    "--agent-output-dir",
+                    tmp,
+                    "-n",
+                    "1",
+                    "--",
+                    "true",
+                ]
+            )
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = cmd_srun(
+                    parsed,
+                    run_sidecar=lambda _argv: 0,
+                    run_user=lambda _argv: 0,
+                )
+            self.assertEqual(code, 0)
+            text = buf.getvalue()
+            self.assertIn("[agent] profile=tools-only", text)
+            self.assertIn("run_dir=", text)
+
     def test_supervisor_and_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)
@@ -79,6 +107,7 @@ class TestCli(unittest.TestCase):
                     str(run_dir),
                     "--skills",
                     "proc-monitor",
+                    "--once",
                 ]
             )
             self.assertEqual(code, 0)

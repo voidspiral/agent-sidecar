@@ -39,6 +39,13 @@ class TestArgv(unittest.TestCase):
         self.assertNotIn("--agent-profile=tools-only", parsed.passthrough)
         self.assertNotIn("--agent-node-llm", parsed.passthrough)
 
+    def test_verbose_flag_consumed(self) -> None:
+        parsed = parse_agent_argv(
+            ["srun", "--agent-verbose", "-n", "1", "hostname"]
+        )
+        self.assertTrue(parsed.options.verbose)
+        self.assertEqual(parsed.passthrough, ["-n", "1", "hostname"])
+
     def test_equals_and_space_forms(self) -> None:
         parsed = parse_agent_argv(
             ["srun", "--agent-profile", "job-assist", "-n", "1", "hostname"]

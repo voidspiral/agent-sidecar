@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -36,11 +37,16 @@ def wrap_srun(
     out_root = resolve_output_dir(parsed.options, env)
     run_dir = out_root / make_run_id(pid=0)
     ensure_run_layout(run_dir)
-    import sys
-
     src_dir = str(Path(__file__).resolve().parents[1])
     exe = sys.executable
-    py_mod = ["env", f"PYTHONPATH={src_dir}", exe, "-m", "agent_sidecar"]
+    py_mod = [
+        "env",
+        f"PYTHONPATH={src_dir}",
+        "PYTHONUNBUFFERED=1",
+        exe,
+        "-m",
+        "agent_sidecar",
+    ]
     supervisor = [
         *py_mod,
         "supervisor",
