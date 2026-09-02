@@ -20,8 +20,8 @@
 
 ## 4. OpenCode docs, skills, launch-fail fixture
 
-- [ ] 4.1 Add `agent.md`, `AGENTS.md` (same text), `skills.md`, `.opencode/opencode.json`, and `.opencode/skills/mpi-monitor/` rewritten from ClusterHelm (no workflow_runner / Master / Slave / partition_report); verify files exist and grep shows no `workflow_runner` or `partition_report`
-- [ ] 4.2 Add launch-failure example plus `scripts/demo_opencode_launch_fail.sh`; update happy-path demo PYTHONPATH to include mpi-monitor src; verify scripts are executable and README documents OpenCode (no keys, no `/home/<user>` paths)
+- [x] 4.1 Add `agent.md`, `AGENTS.md` (same text), `skills.md`, `.opencode/opencode.json`, and `.opencode/skills/mpi-monitor/` rewritten from ClusterHelm (no workflow_runner / Master / Slave / partition_report); verify files exist and grep shows no `workflow_runner` or `partition_report`
+- [x] 4.2 Add launch-failure example plus `scripts/demo_opencode_launch_fail.sh`; update happy-path demo PYTHONPATH to include mpi-monitor src; verify scripts are executable and README documents OpenCode (no keys, no `/home/<user>` paths)
 
 ## 5. Suite freeze and NFS retest
 

@@ -7,8 +7,9 @@ OUT="${2:-$SHARED/agent-runs}"
 WORK="${AGENT_MPI_WORKDIR:-$SHARED/mpi-io}"
 SECONDS_IO="${AGENT_MPI_SECONDS:-60}"
 ENV_FILE="${AGENT_LLM_ENV_FILE:-/root/.config/agent-sidecar/deepseek.env}"
+MPI_SRC="${AGENT_MPI_MONITOR_SRC:-$SHARED/mpi-monitor/src}"
 
-export PYTHONPATH="${ROOT}/src${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="${ROOT}/src:${MPI_SRC}${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONUNBUFFERED=1
 export AGENT_VERBOSE=1
 mkdir -p "$OUT" "$WORK"
@@ -24,9 +25,11 @@ fi
 echo "======== 0. launch host ========"
 echo "host=$(hostname -s) user=$(whoami) date=$(date -Is)"
 echo "shared=$SHARED root=$ROOT out=$OUT work=$WORK"
-echo "profile=job-assist model=${AGENT_LLM_MODEL:-unset} base=${AGENT_LLM_BASE_URL:-unset}"
-if [[ -z "${AGENT_LLM_API_KEY:-}" ]]; then
-  echo "WARNING: AGENT_LLM_API_KEY unset; job-assist will record llm_unconfigured" >&2
+echo "profile=job-assist opencode=$(command -v opencode || echo missing)"
+echo "model=${AGENT_LLM_MODEL:-unset} anthropic_base=${ANTHROPIC_BASE_URL:-unset}"
+if ! command -v opencode >/dev/null 2>&1; then
+  echo "opencode is not on PATH; install it on mn or stop. No HTTP fallback." >&2
+  exit 2
 fi
 df -h "$SHARED"
 command -v srun
@@ -96,6 +99,9 @@ if [[ -n "${RUN}" ]]; then
     echo "---- assist/job.json ----"
     cat "$RUN/assist/job.json"
   fi
+  echo "---- series / charts ----"
+  ls -l "$RUN/series" 2>/dev/null || true
+  ls -l "$RUN/charts" 2>/dev/null || true
   echo "---- files ----"
   find "$RUN" -type f | sort
 fi

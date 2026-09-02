@@ -47,16 +47,17 @@ agent srun --agent-profile=tools-only \
 | `--agent-output-dir` | run 目录的父路径（或设 `AGENT_JOB_DIR`） |
 | `--agent-verbose` | 打印 overlap sidecar / 用户 step 的启动过程 |
 | `--agent-node-llm` | 可选节点模型；记录为不支持 |
-| `--agent-llm-base-url` | 覆盖 `AGENT_LLM_BASE_URL`（job-assist） |
-| `--agent-llm-model` | 覆盖 `AGENT_LLM_MODEL`（job-assist） |
+| `--agent-match` | 覆盖 proc-monitor 的 `--match`（默认用用户二进制基名） |
+| `--agent-interval` | 采样间隔秒（默认 `1.0`） |
 
-`job-assist` 在提交端、写出 `telemetry.json` 之后调用一次 OpenAI 兼容接口，
-不在计算节点上跑模型。凭据只用环境变量（API key 禁止作为 CLI flag）：
+`job-assist` 在提交端、写出 `telemetry.json` 之后调用一次 OpenCode
+（`opencode run --dir <本仓库>`），不再 `POST /chat/completions`，也不在计算
+节点上跑模型。OpenCode 使用操作员已有的 Anthropic 兼容环境变量
+（`ANTHROPIC_*`）。这些变量会从 sidecar `srun` 里剥掉。缺少 `opencode` 时
+**不会**回退 HTTP。
 
 ```bash
-export AGENT_LLM_BASE_URL=https://api.example.com/v1
-export AGENT_LLM_API_KEY=...   # 不要提交进仓库
-export AGENT_LLM_MODEL=your-model
+# 在 mn 上 source 操作员 env（给 OpenCode 的 ANTHROPIC_*）；不要把密钥拷到计算节点或 git
 
 python3 -m agent_sidecar srun --agent-profile=job-assist \
   --agent-skills=proc-monitor,slurm-tap,mpi-scan,node-diag \
@@ -64,8 +65,12 @@ python3 -m agent_sidecar srun --agent-profile=job-assist \
   -N 2 -n 4 -- ./app
 ```
 
-缺凭据或供应商错误写入 `collect_errors`，不替换用户退出码，也不改
+缺少 OpenCode 或 runner 失败写入 `collect_errors`（`opencode_missing` /
+`opencode_timeout` / `opencode_failed`），不替换用户退出码，也不改
 `reason_code`。
+
+mpi-monitor 源码默认 `/shared/mpi-monitor/src`，可用 `AGENT_MPI_MONITOR_SRC`
+覆盖。有 matplotlib 时 wrap 会在 `charts/` 写出 PNG。
 
 约 60 秒、带 IO 的 MPI 示例见 `examples/mpi_io_load.c`。本集群 NFS 挂在
 `/shared`（`mn:/shared`）。源码、二进制、IO scratch 和 run 产物都放这里，
@@ -74,12 +79,22 @@ python3 -m agent_sidecar srun --agent-profile=job-assist \
 ```bash
 # 在 mn 上
 rsync -az ./ /shared/agent-sidecar/
+rsync -az /path/to/mpi-monitor/ /shared/mpi-monitor/
 bash /shared/agent-sidecar/scripts/demo_job_assist_mpi.sh \
   /shared/agent-sidecar /shared/agent-runs
 ```
 
+启动失败（故意缺失二进制）给 OpenCode 诊断：
+
+```bash
+bash /shared/agent-sidecar/scripts/demo_opencode_launch_fail.sh
+```
+
 作业把每 rank 文件写到 `/shared/mpi-io`（可用 `AGENT_MPI_WORKDIR` 覆盖）。
-LLM 密钥仍只留在登录节点 `/root/.config/agent-sidecar/deepseek.env`，不上 NFS。
+密钥仍只留在登录节点的操作员 env 文件里，不上 NFS。
+
+OpenCode 常驻说明：`AGENTS.md`（与 `agent.md` 同文）。Skills：
+`.opencode/skills/`。
 
 其它子命令：`agent sbatch`、`agent salloc`（导出环境并透传）、
 `agent supervisor`、`agent report --run-dir DIR`。
