@@ -25,9 +25,9 @@
 
 ## 5. Suite freeze and NFS retest
 
-- [ ] 5.1 Run `python3 -m unittest discover -s tests` and confirm all tests pass
-- [ ] 5.2 Grep `src/` and `tests/` and confirm wrap does not call chat completions for job-assist, no ClusterHelm workflow imports, no `scancel` remediate helpers, no API keys, sidecar argv does not contain provider keys
-- [ ] 5.3 Deploy sidecar and mpi-monitor to `/shared`; run happy-path demo (non-empty JSONL, charts PNG, OpenCode note, `reason_code=ok`, exit 0) and launch-fail demo (diagnosis + corrected command, no `scancel`); if `opencode` is missing on mn, install or stop and report — no HTTP fallback
+- [x] 5.1 Run `python3 -m unittest discover -s tests` and confirm all tests pass
+- [x] 5.2 Grep `src/` and `tests/` and confirm wrap does not call chat completions for job-assist, no ClusterHelm workflow imports, no `scancel` remediate helpers, no API keys, sidecar argv does not contain provider keys
+- [x] 5.3 Deploy sidecar and mpi-monitor to `/shared`; run happy-path demo (non-empty JSONL, charts PNG, OpenCode note, `reason_code=ok`, exit 0) and launch-fail demo (diagnosis + corrected command, no `scancel`); if `opencode` is missing on mn, install or stop and report — no HTTP fallback
 
 ## Out of this change (do not implement)
 
