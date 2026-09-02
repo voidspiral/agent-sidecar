@@ -1,6 +1,7 @@
-/* MPI ranks generate ~60s of local write/read/fsync load.
+/* MPI ranks generate ~60s of write/read/fsync load.
  * Usage: mpi_io_load [seconds] [work_dir]
  * Default: 60 seconds, work_dir=.
+ * On this cluster put work_dir on NFS, e.g. /shared/mpi-io.
  */
 #define _POSIX_C_SOURCE 200809L
 #include <errno.h>
@@ -70,8 +71,9 @@ int main(int argc, char **argv)
         ssize_t r = read(fd, buf, chunk);
         (void)r;
         ops++;
-        if ((ops % 8ul) == 0ul) {
-            MPI_Barrier(MPI_COMM_WORLD);
+        if (rank == 0 && (ops % 32ul) == 0ul) {
+            fprintf(stderr, "mpi_io_load rank0 ops=%lu elapsed=%ld\n",
+                    ops, (long)(time(NULL) - t0));
         }
     }
 

@@ -62,11 +62,20 @@ Missing credentials or provider errors are recorded in `collect_errors` and
 do not replace the user command exit code. The model must not change
 `reason_code`. `--agent-node-llm` still does not start a per-node model.
 
-A ~60s MPI + IO sample lives in `examples/mpi_io_load.c`. On the login host:
+A ~60s MPI + IO sample lives in `examples/mpi_io_load.c`. The test cluster
+exports NFS at `/shared` (`mn:/shared`). Place the tree, binary, IO scratch,
+and run output there so every node sees the same files:
 
 ```bash
-bash scripts/demo_job_assist_mpi.sh
+# on mn
+rsync -az ./ /shared/agent-sidecar/
+bash /shared/agent-sidecar/scripts/demo_job_assist_mpi.sh \
+  /shared/agent-sidecar /shared/agent-runs
 ```
+
+The sample writes per-rank files under `/shared/mpi-io` (override with
+`AGENT_MPI_WORKDIR`). LLM keys stay on the login host
+(`/root/.config/agent-sidecar/deepseek.env`), not on NFS.
 
 ## Test cluster
 

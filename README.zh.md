@@ -67,11 +67,19 @@ python3 -m agent_sidecar srun --agent-profile=job-assist \
 缺凭据或供应商错误写入 `collect_errors`，不替换用户退出码，也不改
 `reason_code`。
 
-约 60 秒、带 IO 的 MPI 示例见 `examples/mpi_io_load.c`。在登录节点：
+约 60 秒、带 IO 的 MPI 示例见 `examples/mpi_io_load.c`。本集群 NFS 挂在
+`/shared`（`mn:/shared`）。源码、二进制、IO scratch 和 run 产物都放这里，
+各节点同一份文件：
 
 ```bash
-bash scripts/demo_job_assist_mpi.sh
+# 在 mn 上
+rsync -az ./ /shared/agent-sidecar/
+bash /shared/agent-sidecar/scripts/demo_job_assist_mpi.sh \
+  /shared/agent-sidecar /shared/agent-runs
 ```
+
+作业把每 rank 文件写到 `/shared/mpi-io`（可用 `AGENT_MPI_WORKDIR` 覆盖）。
+LLM 密钥仍只留在登录节点 `/root/.config/agent-sidecar/deepseek.env`，不上 NFS。
 
 其它子命令：`agent sbatch`、`agent salloc`（导出环境并透传）、
 `agent supervisor`、`agent report --run-dir DIR`。
@@ -83,30 +91,32 @@ bash scripts/demo_job_assist_mpi.sh
 
 联调用四台节点：`mn`、`cn1`、`cn2`、`cn3`。单元测试不依赖集群。
 
-当前演示树（从 `mn` 发起，无共享文件系统时需把 `src` 同步到计算节点）：
+当前演示树（从 `mn` 发起；本集群用 NFS `/shared`，不必再 tar 到 cn）：
 
 | 用途 | 路径 |
 |------|------|
-| 源码 | `/tmp/agent-sidecar` |
-| 演示脚本 | `/tmp/agent-sidecar/scripts/demo_three_nodes.sh` |
-| 运行产物 | `/tmp/agent-runs` |
+| 源码 / MPI 二进制 | `/shared/agent-sidecar` |
+| job-assist 演示 | `/shared/agent-sidecar/scripts/demo_job_assist_mpi.sh` |
+| MPI IO scratch | `/shared/mpi-io` |
+| 运行产物 | `/shared/agent-runs` |
 
 在 **mn** 上：
 
 ```bash
 ssh mn
-export PYTHONPATH=/tmp/agent-sidecar/src PYTHONUNBUFFERED=1 AGENT_VERBOSE=1
-bash /tmp/agent-sidecar/scripts/demo_three_nodes.sh /tmp/agent-sidecar /tmp/agent-runs
+export PYTHONPATH=/shared/agent-sidecar/src PYTHONUNBUFFERED=1 AGENT_VERBOSE=1
+bash /shared/agent-sidecar/scripts/demo_job_assist_mpi.sh \
+  /shared/agent-sidecar /shared/agent-runs
 ```
 
 已在分配内时，只跑 wrap：
 
 ```bash
-export PYTHONPATH=/tmp/agent-sidecar/src PYTHONUNBUFFERED=1 AGENT_VERBOSE=1
+export PYTHONPATH=/shared/agent-sidecar/src PYTHONUNBUFFERED=1 AGENT_VERBOSE=1
 salloc -N3 -n3 -w cn1,cn2,cn3 -p test
 python3 -m agent_sidecar srun --agent-verbose --agent-profile=tools-only \
   --agent-skills=proc-monitor,node-diag \
-  --agent-output-dir /tmp/agent-runs \
+  --agent-output-dir /shared/agent-runs \
   -n3 -l -- hostname
 ```
 
