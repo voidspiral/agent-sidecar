@@ -11,7 +11,6 @@ from typing import Any
 from agent_sidecar.argv import AgentOptions, ParsedArgv
 from agent_sidecar.assist import run_job_assist
 from agent_sidecar.launch import LaunchPlan, execute_launch, plan_overlap
-from agent_sidecar.llm import load_llm_config
 from agent_sidecar.telemetry import (
     anomalies_from_artifacts,
     ensure_run_layout,
@@ -84,11 +83,6 @@ def merge_event_errors(run_dir: Path, errors: dict[str, str]) -> dict[str, str]:
     return errors
 
 
-def resolve_output_dir(options: AgentOptions, env: dict[str, str]) -> Path:
-    raw = options.output_dir or env.get("AGENT_JOB_DIR") or "runs"
-    return Path(raw)
-
-
 def wrap_srun(
     parsed: ParsedArgv,
     *,
@@ -97,8 +91,8 @@ def wrap_srun(
     run_user: Runner,
     overlap_ok: bool = True,
     collect_errors: dict[str, str] | None = None,
-    llm_transport=None,
     plotter=None,
+    opencode_runner=None,
 ) -> tuple[int, Path, LaunchPlan]:
     out_root = resolve_output_dir(parsed.options, env)
     run_dir = out_root / make_run_id(pid=0)
@@ -133,7 +127,6 @@ def wrap_srun(
         "--interval",
         str(parsed.options.interval),
     ]
-    llm_cfg = load_llm_config(parsed.options, env)
     saved_os = {key: os.environ.get(key) for key in _LLM_ENV_KEYS}
     for key in _LLM_ENV_KEYS:
         env.pop(key, None)
@@ -210,9 +203,8 @@ def wrap_srun(
     if parsed.options.profile == "job-assist":
         run_job_assist(
             run_dir,
-            cfg=llm_cfg,
             user_exit=code,
-            transport=llm_transport,
+            opencode_runner=opencode_runner,
         )
     return code, run_dir, used
 

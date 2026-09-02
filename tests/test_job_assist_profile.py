@@ -1,4 +1,4 @@
-"""job-assist profile: one submit-host model call after telemetry."""
+"""job-assist profile: one submit-host OpenCode spawn after telemetry."""
 
 from __future__ import annotations
 
@@ -20,27 +20,26 @@ from agent_sidecar.run import wrap_srun
 from agent_sidecar.telemetry import load_telemetry
 
 
-LLM_ENV = {
-    "AGENT_LLM_BASE_URL": "https://api.example.com/v1",
+SECRET_ENV = {
+    "ANTHROPIC_API_KEY": "secret-test",
     "AGENT_LLM_API_KEY": "secret-test",
+    "AGENT_LLM_BASE_URL": "https://api.example.com/v1",
     "AGENT_LLM_MODEL": "example-model",
 }
 
 
 def _ok(text: str = "ok interpretation"):
-    body = json.dumps({"choices": [{"message": {"content": text}}]}).encode("utf-8")
+    def runner(argv, cwd, timeout, env=None):
+        runner.calls.append({"argv": argv, "cwd": cwd, "timeout": timeout})
+        return 0, text, ""
 
-    def transport(url, headers, raw, timeout):
-        transport.calls.append({"url": url, "body": json.loads(raw.decode("utf-8"))})
-        return 200, body
-
-    transport.calls = []
-    return transport
+    runner.calls = []
+    return runner
 
 
 class TestJobAssistProfile(unittest.TestCase):
     def test_job_assist_one_call_after_telemetry(self) -> None:
-        transport = _ok("rank imbalance likely")
+        runner = _ok("rank imbalance likely")
         with tempfile.TemporaryDirectory() as tmp:
             parsed = parse_agent_argv(
                 [
@@ -61,24 +60,27 @@ class TestJobAssistProfile(unittest.TestCase):
                 joined = " ".join(argv)
                 self.assertNotIn("secret-test", joined)
                 self.assertIn("-u", joined)
+                self.assertIn("ANTHROPIC_API_KEY", joined)
                 return 0
 
-            code, run_dir, _plan = wrap_srun(
-                parsed,
-                env=dict(LLM_ENV),
-                run_sidecar=run_sidecar,
-                run_user=lambda _a: 0,
-                llm_transport=transport,
-            )
+            with patch("agent_sidecar.llm.chat_complete") as chat:
+                code, run_dir, _plan = wrap_srun(
+                    parsed,
+                    env=dict(SECRET_ENV),
+                    run_sidecar=run_sidecar,
+                    run_user=lambda _a: 0,
+                    opencode_runner=runner,
+                )
+                chat.assert_not_called()
             self.assertEqual(code, 0)
-            self.assertEqual(len(transport.calls), 1)
+            self.assertEqual(len(runner.calls), 1)
             self.assertTrue((run_dir / "telemetry.json").is_file())
-            req = transport.calls[0]["body"]
-            user = req["messages"][1]["content"]
-            self.assertIn("reason_code", user)
+            prompt = runner.calls[0]["argv"][-1]
+            self.assertIn("reason_code", prompt)
+            self.assertEqual(runner.calls[0]["argv"][:3], ["opencode", "run", "--dir"])
 
     def test_tools_only_zero_calls(self) -> None:
-        transport = _ok()
+        runner = _ok()
         with tempfile.TemporaryDirectory() as tmp:
             parsed = parse_agent_argv(
                 [
@@ -94,15 +96,15 @@ class TestJobAssistProfile(unittest.TestCase):
             )
             wrap_srun(
                 parsed,
-                env=dict(LLM_ENV),
+                env=dict(SECRET_ENV),
                 run_sidecar=lambda _a: 0,
                 run_user=lambda _a: 0,
-                llm_transport=transport,
+                opencode_runner=runner,
             )
-            self.assertEqual(len(transport.calls), 0)
+            self.assertEqual(len(runner.calls), 0)
 
     def test_node_llm_does_not_start_node_model(self) -> None:
-        transport = _ok()
+        runner = _ok()
         with tempfile.TemporaryDirectory() as tmp:
             parsed = parse_agent_argv(
                 [
@@ -126,12 +128,12 @@ class TestJobAssistProfile(unittest.TestCase):
 
             wrap_srun(
                 parsed,
-                env=dict(LLM_ENV),
+                env=dict(SECRET_ENV),
                 run_sidecar=run_sidecar,
                 run_user=lambda _a: 0,
-                llm_transport=transport,
+                opencode_runner=runner,
             )
-            self.assertEqual(len(transport.calls), 0)
+            self.assertEqual(len(runner.calls), 0)
             joined = " ".join(sidecar)
             self.assertIn("supervisor", joined)
             self.assertNotIn("node-llm", joined)
@@ -146,7 +148,7 @@ class TestJobAssistProfile(unittest.TestCase):
         self.assertIn("unsupported", buf.getvalue())
 
     def test_patches_job_assist_without_changing_reason(self) -> None:
-        transport = _ok("maybe timeout instead")
+        runner = _ok("maybe timeout instead")
         with tempfile.TemporaryDirectory() as tmp:
             parsed = parse_agent_argv(
                 [
@@ -170,13 +172,16 @@ class TestJobAssistProfile(unittest.TestCase):
 
             _code, run_dir, _plan = wrap_srun(
                 parsed,
-                env=dict(LLM_ENV),
+                env=dict(SECRET_ENV),
                 run_sidecar=run_sidecar,
                 run_user=lambda _a: 0,
-                llm_transport=transport,
+                opencode_runner=runner,
             )
             doc = load_telemetry(run_dir)
             self.assertEqual(doc["reason_code"], "mpi_abort")
             self.assertTrue(doc.get("job_assist"))
             self.assertIn("assist/job.json", doc["evidence_paths"])
             self.assertTrue((run_dir / "assist" / "job.json").is_file())
+            note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
+            self.assertEqual(note["suspected_reason"], "mpi_abort")
+            self.assertEqual(note["actions"], [])

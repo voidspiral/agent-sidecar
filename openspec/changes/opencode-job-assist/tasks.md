@@ -1,22 +1,22 @@
 ## 1. Live proc-monitor collect (tests first)
 
-- [ ] 1.1 Write failing tests that `ProcMonitor.start` with an injected collect loop runs it in the background until `stop()` writes a stop file, and artifacts list `series/*.jsonl`; verify `python3 -m unittest tests.test_proc_monitor` fails
-- [ ] 1.2 Implement threaded collect loop (keep one-shot `collect_fn` for schema tests); verify `python3 -m unittest tests.test_proc_monitor` passes
-- [ ] 1.3 Write failing tests that wrap supervisor argv includes `--match` (user binary basename) and `--interval`, and `--agent-match` overrides; verify they fail then implement until `python3 -m unittest tests.test_argv tests.test_cli tests.test_job_assist_profile` pass
-- [ ] 1.4 Write failing tests that default collect import failure records `mpi_monitor_import` without changing user exit; verify they fail then implement until `python3 -m unittest tests.test_proc_monitor` passes
+- [x] 1.1 Write failing tests that `ProcMonitor.start` with an injected collect loop runs it in the background until `stop()` writes a stop file, and artifacts list `series/*.jsonl`; verify `python3 -m unittest tests.test_proc_monitor` fails
+- [x] 1.2 Implement threaded collect loop (keep one-shot `collect_fn` for schema tests); verify `python3 -m unittest tests.test_proc_monitor` passes
+- [x] 1.3 Write failing tests that wrap supervisor argv includes `--match` (user binary basename) and `--interval`, and `--agent-match` overrides; verify they fail then implement until `python3 -m unittest tests.test_argv tests.test_cli tests.test_job_assist_profile` pass
+- [x] 1.4 Write failing tests that default collect import failure records `mpi_monitor_import` without changing user exit; verify they fail then implement until `python3 -m unittest tests.test_proc_monitor` passes
 
 ## 2. Wrap-time PNG (tests first)
 
-- [ ] 2.1 Write failing tests that wrap with series files calls an injected plotter and lists returned PNG paths in `evidence_paths`; verify `python3 -m unittest tests.test_wrap_telemetry` fails
-- [ ] 2.2 Wire `plot_run` after series summary; skip PNG when plotter returns empty; verify `python3 -m unittest tests.test_wrap_telemetry tests.test_plot_optional` pass
+- [x] 2.1 Write failing tests that wrap with series files calls an injected plotter and lists returned PNG paths in `evidence_paths`; verify `python3 -m unittest tests.test_wrap_telemetry` fails
+- [x] 2.2 Wire `plot_run` after series summary; skip PNG when plotter returns empty; verify `python3 -m unittest tests.test_wrap_telemetry tests.test_plot_optional` pass
 
 ## 3. OpenCode job-assist runner (tests first)
 
-- [ ] 3.1 Write failing tests that a fake OpenCode runner is invoked once after telemetry for `--agent-profile=job-assist`, prompt contains summary/anomalies/reason_code and not every JSONL line, and `tools-only` invokes zero times; verify `python3 -m unittest tests.test_opencode_assist tests.test_job_assist_profile` fail
-- [ ] 3.2 Implement injectable `opencode run --dir <repo>` runner; wrap MUST NOT call chat HTTP; verify those tests pass
-- [ ] 3.3 Write failing tests that successful fake OpenCode writes `assist/job.json` with copied `suspected_reason`, empty `actions`, patches `job_assist`, and does not change `reason_code` or user exit; verify they fail then implement until `python3 -m unittest tests.test_job_assist` passes
-- [ ] 3.4 Write failing tests that missing binary (`opencode_missing`), timeout (`opencode_timeout`), and non-zero (`opencode_failed`) record collect errors, do not HTTP-fallback, and keep user exit/`reason_code`; verify they fail then implement until `python3 -m unittest tests.test_job_assist tests.test_opencode_assist` pass
-- [ ] 3.5 Write failing tests that sidecar argv/env strip `ANTHROPIC_*` and `AGENT_LLM_*`; `--agent-node-llm` still unsupported; verify `python3 -m unittest tests.test_job_assist_profile tests.test_cli` pass
+- [x] 3.1 Write failing tests that a fake OpenCode runner is invoked once after telemetry for `--agent-profile=job-assist`, prompt contains summary/anomalies/reason_code and not every JSONL line, and `tools-only` invokes zero times; verify `python3 -m unittest tests.test_opencode_assist tests.test_job_assist_profile` fail
+- [x] 3.2 Implement injectable `opencode run --dir <repo>` runner; wrap MUST NOT call chat HTTP; verify those tests pass
+- [x] 3.3 Write failing tests that successful fake OpenCode writes `assist/job.json` with copied `suspected_reason`, empty `actions`, patches `job_assist`, and does not change `reason_code` or user exit; verify they fail then implement until `python3 -m unittest tests.test_job_assist` passes
+- [x] 3.4 Write failing tests that missing binary (`opencode_missing`), timeout (`opencode_timeout`), and non-zero (`opencode_failed`) record collect errors, do not HTTP-fallback, and keep user exit/`reason_code`; verify they fail then implement until `python3 -m unittest tests.test_job_assist tests.test_opencode_assist` pass
+- [x] 3.5 Write failing tests that sidecar argv/env strip `ANTHROPIC_*` and `AGENT_LLM_*`; `--agent-node-llm` still unsupported; verify `python3 -m unittest tests.test_job_assist_profile tests.test_cli` pass
 
 ## 4. OpenCode docs, skills, launch-fail fixture
 

@@ -1,4 +1,4 @@
-"""Assist notes from local artifacts; job-assist may call an injected LLM client."""
+"""Assist notes from local artifacts; job-assist may call an injected OpenCode runner."""
 
 from __future__ import annotations
 
@@ -6,9 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from agent_sidecar.llm import LlmConfig, LlmError, chat_complete
+from agent_sidecar.opencode_assist import run_opencode_assist
 from agent_sidecar.spi import Event
-from agent_sidecar.telemetry import load_telemetry
 
 FORBIDDEN_ACTIONS = ("scancel", "scontrol")
 
@@ -64,41 +63,21 @@ def write_job_assist_note(
     return path
 
 
-def _persist_telemetry(run_dir: Path, doc: dict[str, Any]) -> None:
-    (run_dir / "telemetry.json").write_text(
-        json.dumps(doc, indent=2) + "\n", encoding="utf-8"
-    )
-
-
 def run_job_assist(
     run_dir: Path,
     *,
-    cfg: LlmConfig,
     user_exit: int,
-    transport=None,
+    opencode_runner=None,
+    repo_root: Path | None = None,
+    timeout: float | None = None,
+    env: dict[str, str] | None = None,
+    **_ignored,
 ) -> int:
-    doc = load_telemetry(run_dir)
-    errors = dict(doc.get("collect_errors") or {})
-    try:
-        text, _payload = chat_complete(cfg, doc, transport=transport)
-    except LlmError as exc:
-        errors[exc.code] = exc.message
-        doc["collect_errors"] = errors
-        _persist_telemetry(run_dir, doc)
-        return user_exit
-    reason = str(doc.get("reason_code") or "ok")
-    rel = "assist/job.json"
-    write_job_assist_note(
+    return run_opencode_assist(
         run_dir,
-        reason_code=reason,
-        summary=text,
-        evidence_paths=list(doc.get("evidence_paths") or []),
+        user_exit=user_exit,
+        opencode_runner=opencode_runner,
+        repo_root=repo_root,
+        timeout=timeout,
+        env=env,
     )
-    evidence = list(doc.get("evidence_paths") or [])
-    if rel not in evidence:
-        evidence.append(rel)
-    doc["evidence_paths"] = evidence
-    doc["job_assist"] = [{"path": rel, "host": "submit"}]
-    doc["collect_errors"] = errors
-    _persist_telemetry(run_dir, doc)
-    return user_exit
