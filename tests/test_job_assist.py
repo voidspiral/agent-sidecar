@@ -51,6 +51,8 @@ class TestJobAssist(unittest.TestCase):
             self.assertEqual(len(runner.calls), 1)
             argv = runner.calls[0]["argv"]
             self.assertEqual(argv[:3], ["opencode", "run", "--dir"])
+            self.assertIn("--auto", argv)
+            self.assertIn("--agent", argv)
             path = run_dir / "assist" / "job.json"
             self.assertTrue(path.is_file())
             note = json.loads(path.read_text(encoding="utf-8"))

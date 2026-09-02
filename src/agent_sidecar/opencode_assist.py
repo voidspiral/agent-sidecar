@@ -64,6 +64,7 @@ def default_opencode_runner(
             capture_output=True,
             text=True,
             env=env,
+            stdin=subprocess.DEVNULL,
         )
     except subprocess.TimeoutExpired as exc:
         raise OpenCodeError("opencode_timeout", str(exc)) from exc
@@ -99,7 +100,23 @@ def run_opencode_assist(
     )
     root = repo_root or default_repo_root()
     prompt = build_assist_prompt(doc, run_dir)
-    argv = ["opencode", "run", "--dir", str(root), prompt]
+    argv = [
+        "opencode",
+        "run",
+        "--dir",
+        str(root),
+        "--agent",
+        "job-assist",
+        "--auto",
+        prompt,
+    ]
+    model = os.environ.get("AGENT_OPENCODE_MODEL") or ""
+    if not model:
+        raw = os.environ.get("AGENT_LLM_MODEL") or os.environ.get("ANTHROPIC_MODEL") or ""
+        if raw:
+            model = raw if "/" in raw else f"anthropic/{raw}"
+    if model:
+        argv[6:6] = ["--model", model]
     send = opencode_runner or default_opencode_runner
     try:
         rc, stdout, stderr = send(argv, str(root), timeout, env)
@@ -126,7 +143,12 @@ def run_opencode_assist(
     if not summary:
         summary = (stdout or "").strip()
     if not summary:
-        persist_assist_failure(run_dir, doc, "opencode_failed", "OpenCode wrote no assist/job.json")
+        persist_assist_failure(
+            run_dir,
+            doc,
+            "opencode_failed",
+            ((stderr or stdout or "OpenCode wrote no assist/job.json")[:500]),
+        )
         return user_exit
     rel = "assist/job.json"
     write_job_assist_note(
