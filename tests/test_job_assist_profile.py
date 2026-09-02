@@ -6,6 +6,7 @@ import sys
 from pathlib import Path as _Path
 
 sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(_Path(__file__).resolve().parent))
 
 import json
 import tempfile
@@ -14,8 +15,10 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
+from agent_fakes import RecWatch
 from agent_sidecar.argv import parse_agent_argv
 from agent_sidecar.cli import main
+from agent_sidecar.live_opencode import ATTACH_HINT
 from agent_sidecar.run import wrap_srun
 from agent_sidecar.telemetry import load_telemetry
 
@@ -73,11 +76,10 @@ class TestJobAssistProfile(unittest.TestCase):
                 )
                 chat.assert_not_called()
             self.assertEqual(code, 0)
-            self.assertEqual(len(runner.calls), 1)
+            self.assertGreaterEqual(len(runner.calls), 1)
             self.assertTrue((run_dir / "telemetry.json").is_file())
-            prompt = runner.calls[0]["argv"][-1]
-            self.assertIn("reason_code", prompt)
-            self.assertEqual(runner.calls[0]["argv"][:3], ["opencode", "run", "--dir"])
+            self.assertEqual(runner.calls[-1]["argv"][:3], ["opencode", "run", "--dir"])
+            self.assertIn("--auto", runner.calls[-1]["argv"])
 
     def test_tools_only_zero_calls(self) -> None:
         runner = _ok()
@@ -102,6 +104,88 @@ class TestJobAssistProfile(unittest.TestCase):
                 opencode_runner=runner,
             )
             self.assertEqual(len(runner.calls), 0)
+
+    def test_omitted_profile_starts_tools_and_assist(self) -> None:
+        runner = _ok("live default assist")
+        with tempfile.TemporaryDirectory() as tmp:
+            parsed = parse_agent_argv(
+                ["srun", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
+            )
+            seen: list[list[str]] = []
+
+            def run_sidecar(argv: list[str]) -> int:
+                seen.append(argv)
+                return 0
+
+            code, run_dir, _plan = wrap_srun(
+                parsed,
+                env=dict(SECRET_ENV),
+                run_sidecar=run_sidecar,
+                run_user=lambda _a: 0,
+                opencode_runner=runner,
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(parsed.options.profile, "job-assist")
+            self.assertTrue(seen)
+            self.assertIn("--overlap", seen[0])
+            self.assertGreaterEqual(len(runner.calls), 1)
+            self.assertTrue((run_dir / "telemetry.json").is_file())
+
+    def test_non_tty_starts_watcher_before_user(self) -> None:
+        runner = _ok()
+        watch = RecWatch()
+        with tempfile.TemporaryDirectory() as tmp:
+            parsed = parse_agent_argv(
+                ["srun", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
+            )
+            timeline: list[str] = []
+
+            def run_sidecar(_argv: list[str]) -> int:
+                timeline.append("sidecar")
+                return 0
+
+            def run_user(argv: list[str]) -> int:
+                self.assertNotIn("opencode", argv)
+                watch.order.append("user")
+                return 0
+
+            wrap_srun(
+                parsed,
+                env=dict(SECRET_ENV),
+                run_sidecar=run_sidecar,
+                run_user=run_user,
+                opencode_runner=runner,
+                live_watcher=watch,
+                tty=False,
+            )
+            self.assertEqual(timeline, ["sidecar"])
+            self.assertEqual(watch.order, ["start", "user", "stop"])
+
+    def test_tty_prints_attach_hint_without_stealing_srun(self) -> None:
+        runner = _ok()
+        watch = RecWatch()
+        with tempfile.TemporaryDirectory() as tmp:
+            parsed = parse_agent_argv(
+                ["srun", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
+            )
+            buf = StringIO()
+
+            def run_user(argv: list[str]) -> int:
+                self.assertNotIn("opencode", argv)
+                return 0
+
+            with patch("sys.stderr", buf):
+                wrap_srun(
+                    parsed,
+                    env={**SECRET_ENV, "AGENT_QUIET": "0"},
+                    run_sidecar=lambda _a: 0,
+                    run_user=run_user,
+                    opencode_runner=runner,
+                    live_watcher=watch,
+                    tty=True,
+                )
+            self.assertIn(ATTACH_HINT, buf.getvalue())
+            self.assertEqual(watch.order, ["start", "stop"])
 
     def test_node_llm_does_not_start_node_model(self) -> None:
         runner = _ok()
@@ -185,3 +269,62 @@ class TestJobAssistProfile(unittest.TestCase):
             note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
             self.assertEqual(note["suspected_reason"], "mpi_abort")
             self.assertEqual(note["actions"], [])
+
+    def test_live_file_does_not_overwrite_reason_final_after_telemetry(self) -> None:
+        tel_seen: list[bool] = []
+        run_holder: dict[str, Path] = {}
+
+        class LiveWrite:
+            def start(self, run_dir: Path) -> None:
+                run_holder["dir"] = run_dir
+                (run_dir / "assist" / "live.json").write_text(
+                    json.dumps(
+                        {
+                            "host": "submit",
+                            "summary": "live guessed timeout",
+                            "suspected_reason": "timeout",
+                            "actions": [],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+            def tick(self) -> str:
+                tel_seen.append((run_holder["dir"] / "telemetry.json").is_file())
+                return "snap"
+
+            def stop(self) -> None:
+                return None
+
+        with tempfile.TemporaryDirectory() as tmp:
+            parsed = parse_agent_argv(
+                ["srun", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
+            )
+
+            def run_sidecar(argv: list[str]) -> int:
+                out = Path(argv[argv.index("--output-dir") + 1])
+                events = out / "events"
+                events.mkdir(parents=True, exist_ok=True)
+                (events / "stderr.tail").write_text("MPI_Abort\n", encoding="utf-8")
+                return 0
+
+            def tracking_runner(argv, cwd, timeout, env=None):
+                tel_seen.append((run_holder["dir"] / "telemetry.json").is_file())
+                return 0, "final ok", ""
+
+            _code, run_dir, _plan = wrap_srun(
+                parsed,
+                env=dict(SECRET_ENV),
+                run_sidecar=run_sidecar,
+                run_user=lambda _a: 0,
+                opencode_runner=tracking_runner,
+                live_watcher=LiveWrite(),
+                tty=False,
+            )
+            doc = load_telemetry(run_dir)
+            self.assertEqual(doc["reason_code"], "mpi_abort")
+            live = json.loads((run_dir / "assist" / "live.json").read_text(encoding="utf-8"))
+            self.assertEqual(live["suspected_reason"], "timeout")
+            self.assertTrue(tel_seen)
+            self.assertTrue(tel_seen[-1])
+            self.assertTrue((run_dir / "assist" / "job.json").is_file())

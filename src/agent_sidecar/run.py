@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from agent_sidecar.argv import AgentOptions, ParsedArgv
+from agent_sidecar.argv import AgentOptions, ParsedArgv, agent_quiet, apply_profile_defaults
 from agent_sidecar.assist import run_job_assist
 from agent_sidecar.launch import LaunchPlan, execute_launch, plan_overlap
+from agent_sidecar.live_opencode import ATTACH_HINT, LiveWatcher
 from agent_sidecar.telemetry import (
     anomalies_from_artifacts,
     ensure_run_layout,
@@ -37,6 +39,8 @@ _LLM_ENV_KEYS = (
 )
 
 DEFAULT_MPI_MONITOR_SRC = "/shared/mpi-monitor/src"
+DEFAULT_JOB_DIR_SHARED = "/shared/agent-runs"
+AGENT_STOP_NAME = ".agent-stop"
 LAUNCHERS = {
     "srun",
     "mpirun",
@@ -49,13 +53,27 @@ LAUNCHERS = {
 
 
 def resolve_output_dir(options: AgentOptions, env: dict[str, str]) -> Path:
-    raw = options.output_dir or env.get("AGENT_JOB_DIR") or "runs"
-    return Path(raw)
+    raw = options.output_dir or env.get("AGENT_JOB_DIR")
+    if not raw:
+        raw = DEFAULT_JOB_DIR_SHARED if Path("/shared").is_dir() else "runs"
+    path = Path(raw)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def sidecar_pythonpath(src_dir: str, env: dict[str, str]) -> str:
     mpi = env.get("AGENT_MPI_MONITOR_SRC") or DEFAULT_MPI_MONITOR_SRC
     return f"{src_dir}:{mpi}"
+
+
+def agent_stop_path(run_dir: Path) -> Path:
+    return Path(run_dir) / AGENT_STOP_NAME
+
+
+def request_agent_stop(run_dir: Path) -> Path:
+    path = agent_stop_path(run_dir)
+    path.write_text("stop\n", encoding="utf-8")
+    return path
 
 
 def user_command_match(passthrough: list[str], override: str | None) -> str:
@@ -93,7 +111,18 @@ def wrap_srun(
     collect_errors: dict[str, str] | None = None,
     plotter=None,
     opencode_runner=None,
+    live_watcher=None,
+    tty: bool | None = None,
 ) -> tuple[int, Path, LaunchPlan]:
+    apply_profile_defaults(parsed.options)
+    quiet = agent_quiet(parsed.options, env)
+    prev_quiet = os.environ.get("AGENT_QUIET")
+    quiet_injected = False
+    if quiet:
+        env["AGENT_QUIET"] = "1"
+        if prev_quiet != "1":
+            os.environ["AGENT_QUIET"] = "1"
+            quiet_injected = True
     out_root = resolve_output_dir(parsed.options, env)
     run_dir = out_root / make_run_id(pid=0)
     ensure_run_layout(run_dir)
@@ -128,15 +157,35 @@ def wrap_srun(
         str(parsed.options.interval),
     ]
     saved_os = {key: os.environ.get(key) for key in _LLM_ENV_KEYS}
+    assist_env = dict(env)
     for key in _LLM_ENV_KEYS:
         env.pop(key, None)
         os.environ.pop(key, None)
+    assist = parsed.options.profile == "job-assist"
+    watcher = live_watcher
+    if assist and watcher is None:
+        watcher = LiveWatcher(opencode_runner=opencode_runner, env=assist_env)
+    use_tty = sys.stdin.isatty() and sys.stdout.isatty() if tty is None else tty
+
+    def run_user_with_live(argv: list[str]) -> int:
+        if "opencode" in argv or any("opencode" in t for t in argv):
+            raise RuntimeError("OpenCode must not appear in the user srun argv")
+        if watcher is not None:
+            watcher.start(run_dir)
+            if use_tty and not quiet:
+                print(ATTACH_HINT, file=sys.stderr)
+        try:
+            return run_user(argv)
+        finally:
+            if watcher is not None:
+                watcher.stop()
+
     try:
         plan = plan_overlap(parsed.passthrough, supervisor)
         code, used = execute_launch(
             plan,
             run_sidecar=run_sidecar,
-            run_user=run_user,
+            run_user=run_user_with_live,
             overlap_ok=overlap_ok,
             passthrough=parsed.passthrough,
             wrap_argv=[*py_mod, "exec-wrap"],
@@ -147,6 +196,12 @@ def wrap_srun(
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
+        if quiet_injected:
+            if prev_quiet is None:
+                os.environ.pop("AGENT_QUIET", None)
+            else:
+                os.environ["AGENT_QUIET"] = prev_quiet
+    request_agent_stop(run_dir)
     errors = collect_errors or {}
     errors = merge_event_errors(run_dir, errors)
     retry = retry_metadata(
@@ -206,6 +261,14 @@ def wrap_srun(
             user_exit=code,
             opencode_runner=opencode_runner,
         )
+        note_path = run_dir / "assist" / "job.json"
+        if note_path.is_file():
+            try:
+                note_summary = json.loads(note_path.read_text(encoding="utf-8")).get("summary") or ""
+            except json.JSONDecodeError:
+                note_summary = ""
+            if note_summary and not quiet:
+                print(f"[agent] job-assist: {note_summary}", file=sys.stderr, flush=True)
     return code, run_dir, used
 
 

@@ -16,7 +16,8 @@ The application **did not start**. This is not MPI abort, OOM, or IO imbalance.
 
 ## What to write
 
-In `assist/job.json` `summary`:
+In `assist/job.json` `summary` (Simplified Chinese / 简体中文; 分条 numbered
+list; keep the shell command as-is):
 
 1. State that the executable was missing or not visible on the compute nodes.
 2. On this cluster, binaries must live on NFS (`/shared/...`), not only on `mn`
@@ -28,10 +29,8 @@ In `assist/job.json` `summary`:
 mpicc -O2 -o /shared/agent-sidecar/examples/mpi_io_load \
   /shared/agent-sidecar/examples/mpi_io_load.c
 
-python3 -m agent_sidecar srun --agent-profile=job-assist \
-  --agent-skills=proc-monitor,slurm-tap,mpi-scan,node-diag \
-  --agent-output-dir /shared/agent-runs \
-  -n3 -l -- \
+python3 -m agent_sidecar srun --agent-output-dir /shared/agent-runs \
+  -n3 -- \
   /shared/agent-sidecar/examples/mpi_io_load 60 /shared/mpi-io
 ```
 

@@ -1,8 +1,8 @@
 ## 1. Default profile job-assist (tests first)
 
-- [ ] 1.1 Write failing tests that omitted `--agent-profile` is `job-assist` and `--agent-profile=tools-only` skips OpenCode; verify `python3 -m unittest tests.test_profiles tests.test_argv` fail
-- [ ] 1.2 Flip `AgentOptions.profile` default to `job-assist`; verify those tests pass
-- [ ] 1.3 Write failing tests that omitted profile still starts overlap tools and attempts submit-host assist; verify they fail then implement until `python3 -m unittest tests.test_job_assist_profile tests.test_cli` pass
+- [x] 1.1 Write failing tests that omitted `--agent-profile` is `job-assist` and `--agent-profile=tools-only` skips OpenCode; verify `python3 -m unittest tests.test_profiles tests.test_argv` fail
+- [x] 1.2 Flip `AgentOptions.profile` default to `job-assist`; verify those tests pass
+- [x] 1.3 Write failing tests that omitted profile still starts overlap tools and attempts submit-host assist; verify they fail then implement until `python3 -m unittest tests.test_job_assist_profile tests.test_cli` pass
 
 ## 2. Live watcher (tests first)
 
@@ -18,7 +18,7 @@
 
 ## 4. Docs and demos
 
-- [ ] 4.1 Update `AGENTS.md` / `agent.md` for during-job snapshot analysis (still no `/proc` scrape, no compute OpenCode); verify both files stay in sync and grep shows no `workflow_runner` or `partition_report`
+- [ ] 4.1 Update `.opencode/AGENTS.md` / `.opencode/agent/job-assist.md` / `.cursor/rules/job-assist.mdc` for during-job snapshot analysis (still no `/proc` scrape, no compute OpenCode); verify copies stay in sync (`python3 -m unittest tests.test_agents_md_sync`) and grep shows no `workflow_runner` or `partition_report`
 - [ ] 4.2 Update README / README.zh.md shortest `agent srun` (no required `--agent-profile=job-assist`); drop the flag from demos; verify scripts stay executable and mention `tools-only` as the off switch
 - [ ] 4.3 Update `openspec/config.yaml` context so default placement is job-assist; verify the file still validates as YAML
 

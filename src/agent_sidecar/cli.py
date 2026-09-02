@@ -11,8 +11,15 @@ import sys
 import time
 from pathlib import Path
 
-from agent_sidecar.argv import AgentParseError, apply_profile_defaults, parse_agent_argv
-from agent_sidecar.run import sbatch_environ, submit_sbatch, wrap_srun
+from agent_sidecar.argv import AgentParseError, agent_quiet, apply_profile_defaults, parse_agent_argv
+from agent_sidecar.report import format_run_report, write_run_report
+from agent_sidecar.run import (
+    agent_stop_path,
+    request_agent_stop,
+    sbatch_environ,
+    submit_sbatch,
+    wrap_srun,
+)
 from agent_sidecar.spi import JobContext, start_supervisor
 from agent_sidecar.telemetry import load_telemetry
 from agent_sidecar.tools.mpi_scan import MpiScan
@@ -30,6 +37,21 @@ PLUGIN_FACTORIES = {
 }
 
 
+def reap_sidecar(proc: subprocess.Popen, *, timeout: float = 15.0) -> None:
+    if proc.poll() is not None:
+        return
+    try:
+        proc.wait(timeout=timeout)
+        return
+    except subprocess.TimeoutExpired:
+        proc.terminate()
+    try:
+        proc.wait(timeout=8)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=5)
+
+
 def _log(msg: str) -> None:
     print(f"[agent] {msg}", flush=True)
 
@@ -38,14 +60,30 @@ def _spawn(argv: list[str]) -> int:
     return subprocess.call(argv)
 
 
-def cmd_srun(parsed, *, run_sidecar=None, run_user=None, overlap_ok: bool = True) -> int:
+def cmd_srun(
+    parsed,
+    *,
+    run_sidecar=None,
+    run_user=None,
+    overlap_ok: bool = True,
+    opencode_runner=None,
+    live_watcher=None,
+    tty: bool | None = None,
+) -> int:
     verbose = parsed.options.verbose or os.environ.get("AGENT_VERBOSE") == "1"
+    quiet = agent_quiet(parsed.options)
+    if quiet:
+        verbose = False
     holder: dict[str, subprocess.Popen[str]] = {}
 
     def default_sidecar(argv: list[str]) -> int:
         if verbose:
             _log("start sidecar step: " + " ".join(argv))
-        proc = subprocess.Popen(argv)
+        proc = subprocess.Popen(
+            argv,
+            stdout=subprocess.DEVNULL if quiet else None,
+            stderr=subprocess.DEVNULL if quiet else None,
+        )
         deadline = time.monotonic() + 2.0
         while time.monotonic() < deadline:
             rc = proc.poll()
@@ -67,6 +105,9 @@ def cmd_srun(parsed, *, run_sidecar=None, run_user=None, overlap_ok: bool = True
     if verbose:
         _log(f"profile={parsed.options.profile} skills={parsed.options.skills or ('proc-monitor',)}")
         _log("passthrough=" + " ".join(parsed.passthrough))
+    if quiet:
+        _log("sidecar started")
+        _log("user step started")
 
     code, run_dir, plan = wrap_srun(
         parsed,
@@ -74,18 +115,21 @@ def cmd_srun(parsed, *, run_sidecar=None, run_user=None, overlap_ok: bool = True
         run_sidecar=run_sidecar or default_sidecar,
         run_user=run_user or default_user,
         overlap_ok=overlap_ok,
+        opencode_runner=opencode_runner,
+        live_watcher=live_watcher,
+        tty=tty,
     )
     proc = holder.get("proc")
     if proc is not None:
+        request_agent_stop(run_dir)
         if verbose:
             _log(f"stop sidecar (pid={proc.pid})")
-        proc.terminate()
-        try:
-            proc.wait(timeout=15)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait(timeout=5)
-    if verbose:
+        reap_sidecar(proc)
+    if quiet:
+        _log(f"user exit={code}")
+        write_run_report(run_dir)
+        print(format_run_report(run_dir), end="", flush=True)
+    elif verbose:
         _log(f"mode={plan.mode} fallback={plan.fallback_used} user_exit={code}")
         _log(f"run_dir={run_dir}")
         tel = run_dir / "telemetry.json"
@@ -166,10 +210,11 @@ def cmd_supervisor(argv: list[str]) -> int:
         match=ns.match or None,
         interval=ns.interval,
     )
-    print(
-        f"[sidecar] host={ns.host} job={ns.job_id} pid={os.getpid()} skills={','.join(skills)}",
-        flush=True,
-    )
+    if os.environ.get("AGENT_QUIET") != "1":
+        print(
+            f"[sidecar] host={ns.host} job={ns.job_id} pid={os.getpid()} skills={','.join(skills)}",
+            flush=True,
+        )
     sup = start_supervisor(ns.job_id, ns.host, _plugins_for(skills), ctx)
     if ns.once:
         sup.stop()
@@ -177,15 +222,23 @@ def cmd_supervisor(argv: list[str]) -> int:
     stop = {"n": False}
 
     def _handle(signum: int, _frame: object) -> None:
-        print(f"[sidecar] host={ns.host} got signal {signum}, stopping", flush=True)
+        if os.environ.get("AGENT_QUIET") != "1":
+            print(f"[sidecar] host={ns.host} got signal {signum}, stopping", flush=True)
         stop["n"] = True
 
-    signal.signal(signal.SIGTERM, _handle)
-    signal.signal(signal.SIGINT, _handle)
+    try:
+        signal.signal(signal.SIGTERM, _handle)
+        signal.signal(signal.SIGINT, _handle)
+    except ValueError:
+        pass
+    stop_path = agent_stop_path(ns.output_dir)
     while not stop["n"]:
+        if stop_path.is_file():
+            break
         time.sleep(0.2)
     sup.stop()
-    print(f"[sidecar] host={ns.host} stopped", flush=True)
+    if os.environ.get("AGENT_QUIET") != "1":
+        print(f"[sidecar] host={ns.host} stopped", flush=True)
     return 0
 
 

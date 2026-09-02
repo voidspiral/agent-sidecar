@@ -39,6 +39,24 @@ class TestArgv(unittest.TestCase):
         self.assertNotIn("--agent-profile=tools-only", parsed.passthrough)
         self.assertNotIn("--agent-node-llm", parsed.passthrough)
 
+    def test_omitted_profile_is_job_assist(self) -> None:
+        parsed = parse_agent_argv(["srun", "-n", "1", "hostname"])
+        self.assertEqual(parsed.options.profile, "job-assist")
+        self.assertTrue(parsed.options.quiet)
+
+    def test_verbose_disables_default_quiet(self) -> None:
+        from agent_sidecar.argv import agent_quiet
+
+        parsed = parse_agent_argv(["srun", "--agent-verbose", "-n", "1", "--", "true"])
+        self.assertTrue(parsed.options.verbose)
+        self.assertFalse(agent_quiet(parsed.options, env={}))
+
+    def test_explicit_tools_only_skips_default(self) -> None:
+        parsed = parse_agent_argv(
+            ["srun", "--agent-profile=tools-only", "-n", "1", "--", "./app"]
+        )
+        self.assertEqual(parsed.options.profile, "tools-only")
+
     def test_verbose_flag_consumed(self) -> None:
         parsed = parse_agent_argv(
             ["srun", "--agent-verbose", "-n", "1", "hostname"]

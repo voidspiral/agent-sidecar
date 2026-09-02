@@ -63,8 +63,23 @@ class TestJobAssist(unittest.TestCase):
             blob = path.read_text(encoding="utf-8")
             self.assertNotIn('"scancel"', blob)
             self.assertNotIn('"scontrol"', blob)
+            self.assertIn("--format", argv)
+            self.assertIn("json", argv)
             doc = load_telemetry(run_dir)
             self.assertEqual(doc["reason_code"], "mpi_abort")
+
+    def test_write_note_keeps_raw_chinese(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            write_job_assist_note(
+                run_dir,
+                reason_code="ok",
+                summary="1. 结论：作业成功。",
+                evidence_paths=[],
+            )
+            raw = (run_dir / "assist" / "job.json").read_text(encoding="utf-8")
+            self.assertIn("结论", raw)
+            self.assertNotIn("\\u7ed3", raw)
 
     def test_write_note_forces_empty_actions(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -123,6 +138,30 @@ class TestJobAssist(unittest.TestCase):
             doc = load_telemetry(run_dir)
             self.assertIn("opencode_timeout", doc["collect_errors"])
             self.assertEqual(doc["reason_code"], "mpi_abort")
+
+    def test_timeout_keeps_written_note(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            _seed(run_dir)
+
+            def runner(argv, cwd, timeout, env=None):
+                write_job_assist_note(
+                    run_dir,
+                    reason_code="mpi_abort",
+                    summary="作业已结束，采样正常。",
+                    evidence_paths=["events/stderr.tail"],
+                )
+                raise OpenCodeError("opencode_timeout", "timed out")
+
+            code = run_job_assist(run_dir, opencode_runner=runner, user_exit=5)
+            self.assertEqual(code, 5)
+            doc = load_telemetry(run_dir)
+            self.assertNotIn("opencode_timeout", doc.get("collect_errors") or {})
+            self.assertEqual(doc["reason_code"], "mpi_abort")
+            note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
+            self.assertIn("作业已结束", note["summary"])
+            self.assertEqual(note["actions"], [])
+            self.assertIn("assist/job.json", doc.get("evidence_paths") or [])
 
     def test_prompt_does_not_embed_jsonl_samples(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

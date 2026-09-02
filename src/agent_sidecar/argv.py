@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Sequence
 
@@ -13,13 +14,14 @@ KNOWN_AGENT_FLAGS = {
     "agent-launcher",
     "agent-hosts",
     "agent-verbose",
+    "agent-quiet",
     "agent-llm-base-url",
     "agent-llm-model",
     "agent-match",
     "agent-interval",
 }
 
-BOOLEAN_AGENT_FLAGS = {"agent-node-llm", "agent-verbose"}
+BOOLEAN_AGENT_FLAGS = {"agent-node-llm", "agent-verbose", "agent-quiet"}
 
 PROFILES = frozenset({"tools-only", "node-assist", "job-assist"})
 
@@ -32,11 +34,12 @@ class AgentParseError(Exception):
 
 @dataclass
 class AgentOptions:
-    profile: str = "tools-only"
+    profile: str = "job-assist"
     skills: tuple[str, ...] = ()
     output_dir: str | None = None
     node_llm: bool = False
     verbose: bool = False
+    quiet: bool = True
     launcher: str | None = None
     hosts: str | None = None
     llm_base_url: str | None = None
@@ -106,6 +109,8 @@ def _assign(options: AgentOptions, name: str, value: str, *, present: bool) -> N
         options.node_llm = present
     elif name == "agent-verbose":
         options.verbose = present
+    elif name == "agent-quiet":
+        options.quiet = present
     elif name == "agent-launcher":
         options.launcher = value
     elif name == "agent-hosts":
@@ -125,12 +130,25 @@ def _assign(options: AgentOptions, name: str, value: str, *, present: bool) -> N
 
 def validate_profile(profile: str) -> str:
     if not profile:
-        return "tools-only"
+        return "job-assist"
     if profile not in PROFILES:
         raise AgentParseError(f"unknown --agent-profile={profile}")
     return profile
 
 
 def apply_profile_defaults(options: AgentOptions) -> AgentOptions:
-    options.profile = validate_profile(options.profile or "tools-only")
+    options.profile = validate_profile(options.profile or "job-assist")
+    if not options.skills:
+        options.skills = ("proc-monitor",)
     return options
+
+
+def agent_quiet(options: AgentOptions | None = None, env: dict[str, str] | None = None) -> bool:
+    env = env if env is not None else os.environ
+    if options is not None and options.verbose:
+        return False
+    if (env.get("AGENT_VERBOSE") or "").strip() == "1":
+        return False
+    if (env.get("AGENT_QUIET") or "").strip() == "0":
+        return False
+    return True

@@ -32,25 +32,27 @@ python3 -m agent_sidecar srun -- ...
 `--agent-*` 由本 CLI 消费，**不会**转发给 SLURM。
 
 ```bash
-agent srun --agent-profile=tools-only \
-  --agent-skills=proc-monitor,slurm-tap,mpi-scan,node-diag \
-  --agent-output-dir ./runs \
-  -N 2 -n 4 -- ./app
+agent srun --agent-output-dir ./runs -N 2 -n 4 -- ./app
 ```
 
-默认 `--agent-profile` 为 `tools-only`（确定性节点工具，无 LLM）。
+默认 `--agent-profile` 为 `job-assist`（节点工具 + 提交端 OpenCode）。
+`--agent-skills` 默认为 `proc-monitor`；有 `/shared` 时输出目录默认为
+`/shared/agent-runs`；默认为 `--agent-quiet`（关键步骤 + 最终 report）。
+`--agent-verbose` 打开完整启动痕迹。`--agent-profile=tools-only` 关闭 OpenCode。
 
 | 参数 | 含义 |
 |------|------|
-| `--agent-profile` | `tools-only`（默认）、`node-assist`、`job-assist` |
+| `--agent-profile` | `job-assist`（默认）、`tools-only`（无 OpenCode）、`node-assist` |
 | `--agent-skills` | 节点 sidecar 加载的工具，逗号分隔 |
 | `--agent-output-dir` | run 目录的父路径（或设 `AGENT_JOB_DIR`） |
 | `--agent-verbose` | 打印 overlap sidecar / 用户 step 的启动过程 |
+| `--agent-quiet` | 只打关键步骤，结束时汇总 summary 和产物为 `report.txt`（也可用 `AGENT_QUIET=1`） |
 | `--agent-node-llm` | 可选节点模型；记录为不支持 |
 | `--agent-match` | 覆盖 proc-monitor 的 `--match`（默认用用户二进制基名） |
 | `--agent-interval` | 采样间隔秒（默认 `1.0`） |
 
-`job-assist` 在提交端、写出 `telemetry.json` 之后调用一次 OpenCode
+`job-assist`（默认）在提交端跑 live OpenCode（作业期间看 `series/`/`events/`
+快照），并在写出 `telemetry.json` 后再出一份最终笔记
 （`opencode run --dir <本仓库>`），不再 `POST /chat/completions`，不 source
 任何供应商 env 文件，也不在计算节点上跑模型。OpenCode 用登录节点上自己的
 配置。进程环境里若已有供应商变量，会从 sidecar `srun` 剥掉。缺少 `opencode`
@@ -59,10 +61,7 @@ agent srun --agent-profile=tools-only \
 ```bash
 # 在 mn 上；凭据留在 OpenCode 自己的配置里，不要拷到计算节点或 git
 
-python3 -m agent_sidecar srun --agent-profile=job-assist \
-  --agent-skills=proc-monitor,slurm-tap,mpi-scan,node-diag \
-  --agent-output-dir /tmp/agent-runs \
-  -N 2 -n 4 -- ./app
+python3 -m agent_sidecar srun -N 2 -n 4 -- ./app
 ```
 
 缺少 OpenCode 或 runner 失败写入 `collect_errors`（`opencode_missing` /
@@ -95,8 +94,10 @@ bash /shared/agent-sidecar/scripts/demo_opencode_launch_fail.sh
 作业把每 rank 文件写到 `/shared/mpi-io`（可用 `AGENT_MPI_WORKDIR` 覆盖）。
 OpenCode 凭据留在登录节点 OpenCode 自己的配置里，不上 NFS、不进本仓库。
 
-OpenCode 常驻说明：`AGENTS.md`（与 `agent.md` 同文）。Skills：
-`.opencode/skills/`。
+常驻说明放在工具目录（作业协助 LLM 是 OpenCode，Cursor 只做本地调试）：
+`.opencode/AGENTS.md`、`.opencode/agent/job-assist.md`、
+`.cursor/rules/job-assist.mdc`。中文：`.opencode/AGENTS.zh.md`。
+Skills：`.opencode/skills/`。
 
 其它子命令：`agent sbatch`、`agent salloc`（导出环境并透传）、
 `agent supervisor`、`agent report --run-dir DIR`。
@@ -137,9 +138,9 @@ python3 -m agent_sidecar srun --agent-verbose --agent-profile=tools-only \
   -n3 -l -- hostname
 ```
 
-看最新 run 目录下的 `meta.json`、`telemetry.json`。一期 `tools-only` 会把
-supervisor 打到各节点；`proc-monitor` / `node-diag` 的真实采集仍依赖注入的
-采集函数，空跑时 `series/` 可能为空。
+看最新 run 目录下的 `meta.json`、`telemetry.json`。默认 `job-assist` 会在 mn
+上跑 OpenCode；上面的 `tools-only` 只采工具。`proc-monitor` / `node-diag` 的
+真实采集仍依赖注入的采集函数，空跑时 `series/` 可能为空。
 
 ## 测试
 

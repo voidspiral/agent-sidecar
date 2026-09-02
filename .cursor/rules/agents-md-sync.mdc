@@ -1,0 +1,30 @@
+---
+description: Cursor and OpenCode job-assist markdown must be edited together
+alwaysApply: true
+---
+
+# Keep Cursor / OpenCode agent docs in sync
+
+OpenCode is the job-assist LLM. Cursor is for local debug. Standing
+instructions live in the tool directories, not the repo root.
+
+When you change job-assist standing instructions, update **all** English
+copies in the same edit:
+
+- `.opencode/AGENTS.md`
+- `.opencode/agent/job-assist.md`
+- `.cursor/rules/job-assist.mdc`
+
+When you change the Chinese translation, update **all** in the same edit:
+
+- `.opencode/AGENTS.zh.md`
+- `.cursor/rules/job-assist.zh.md`
+
+Do not place `*.zh.md` under `.opencode/agent/` (OpenCode would register
+another agent from the filename). Do not add root `AGENTS.md` / `agent.md`.
+`tests/test_agents_md_sync.py` must stay green.
+
+OpenSpec / Cursor command skills under `.cursor/` are **not** duplicated into
+`.opencode/skills/`. Job-assist skills under `.opencode/skills/` are **not**
+duplicated into `.cursor/`. Only the standing job-assist instruction files
+above stay in lockstep.

@@ -112,6 +112,7 @@ class ProcMonitor:
             "stop_file": self._stop_file,
             "interval": ctx.interval,
             "host": ctx.host,
+            "ready_timeout": 120.0,
         }
         self._thread = threading.Thread(target=loop, kwargs=kwargs, daemon=True)
         self._thread.start()

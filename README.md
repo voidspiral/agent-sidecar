@@ -25,40 +25,41 @@ or a relative run directory. Do not hardcode `/home/<user>/...`.
 `--agent-*` flags are consumed by this CLI and are **not** forwarded to SLURM.
 
 ```bash
-agent srun --agent-profile=tools-only \
-  --agent-skills=proc-monitor,slurm-tap,mpi-scan,node-diag \
-  --agent-output-dir ./runs \
-  -N 2 -n 4 -- ./app
+agent srun -N 2 -n 4 -- ./app
 ```
 
-Default `--agent-profile` is `tools-only` (deterministic node tools, no LLM).
+Default `--agent-profile` is `job-assist`. `--agent-skills` defaults to
+`proc-monitor`. If `/shared` exists, the output directory defaults to
+`/shared/agent-runs`. Logging defaults to quiet (key steps + final report).
+`--agent-verbose` prints the full launch trace. `--agent-profile=tools-only`
+skips OpenCode.
 
 | Flag | Meaning |
 |------|---------|
-| `--agent-profile` | `tools-only` (default), `node-assist`, `job-assist` |
+| `--agent-profile` | `job-assist` (default), `tools-only` (no OpenCode), `node-assist` |
 | `--agent-skills` | comma-separated tools loaded by the node sidecar |
 | `--agent-output-dir` | run directory parent (or set `AGENT_JOB_DIR`) |
+| `--agent-verbose` | print overlap sidecar / user-step launch trace and raw telemetry |
+| `--agent-quiet` | key steps only, then a final `report.txt` (summary + artifacts). Also `AGENT_QUIET=1` |
 | `--agent-node-llm` | opt-in node model; recorded as unsupported |
 | `--agent-match` | override proc-monitor `--match` (default: user binary basename) |
 | `--agent-interval` | sample interval in seconds (default `1.0`) |
 
-Job-assist runs **once on the submit host** after `telemetry.json` is written.
-It spawns OpenCode (`opencode run --dir <this repo>`). It does not POST
-`/chat/completions`, does not source a provider env file, and does not run on
-compute nodes. OpenCode uses its own login-host config. Provider keys that
-happen to be in the process environment are stripped from sidecar `srun`.
-There is **no HTTP fallback** if `opencode` is missing.
+Job-assist runs **on the submit host**: a live OpenCode watcher ticks on
+artifact snapshots while the user step runs, then one final `opencode run`
+after `telemetry.json`. It does not POST `/chat/completions`, does not source
+a provider env file, and does not run on compute nodes. OpenCode uses its own
+login-host config. Provider keys that happen to be in the process environment
+are stripped from sidecar `srun`. There is **no HTTP fallback** if `opencode`
+is missing.
 
 ```bash
 # on mn; OpenCode credentials stay in OpenCode's own config, not this repo
 
-agent srun --agent-profile=job-assist \
-  --agent-skills=proc-monitor,slurm-tap,mpi-scan,node-diag \
-  --agent-output-dir ./runs \
-  -N 2 -n 4 -- ./app
+agent srun -N 2 -n 4 -- ./app
 ```
 
-Missing OpenCode or runner errors are recorded in `collect_errors`
+`--agent-profile=tools-only` skips OpenCode. Missing OpenCode or runner errors are recorded in `collect_errors`
 (`opencode_missing`, `opencode_timeout`, `opencode_failed`) and do not replace
 the user command exit code. The model must not change `reason_code`.
 `--agent-node-llm` still does not start a per-node model.
@@ -90,8 +91,10 @@ The sample writes per-rank files under `/shared/mpi-io` (override with
 `AGENT_MPI_WORKDIR`). OpenCode credentials stay in OpenCode's login-host
 config, not in this repo and not on NFS.
 
-Standing OpenCode instructions: `AGENTS.md` (same text as `agent.md`). Skills:
-`.opencode/skills/`.
+Standing instructions live in tool directories (OpenCode is the job-assist
+LLM; Cursor is local debug): `.opencode/AGENTS.md`,
+`.opencode/agent/job-assist.md`, `.cursor/rules/job-assist.mdc`.
+Chinese: `.opencode/AGENTS.zh.md`. Skills: `.opencode/skills/`.
 
 ## Test cluster
 

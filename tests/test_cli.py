@@ -10,6 +10,8 @@ sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "src"))
 import contextlib
 import io
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 
@@ -17,6 +19,9 @@ from agent_sidecar.argv import parse_agent_argv
 from agent_sidecar.cli import cmd_srun, main
 from agent_sidecar.spi import reset_supervisors
 from agent_sidecar.telemetry import write_telemetry
+
+sys.path.insert(0, str(_Path(__file__).resolve().parent))
+from agent_fakes import NoWatch, noop_opencode
 
 
 class TestCli(unittest.TestCase):
@@ -57,7 +62,35 @@ class TestCli(unittest.TestCase):
             self.assertIn("true", seen["user"])
             self.assertNotIn("--agent-profile=tools-only", seen["user"])
 
-    def test_verbose_prints_launch_trace(self) -> None:
+    def test_default_srun_is_quiet_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            parsed = parse_agent_argv(
+                [
+                    "srun",
+                    "--agent-profile=tools-only",
+                    "--agent-output-dir",
+                    tmp,
+                    "-n",
+                    "1",
+                    "--",
+                    "true",
+                ]
+            )
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = cmd_srun(
+                    parsed,
+                    run_sidecar=lambda _a: 0,
+                    run_user=lambda _a: 0,
+                    opencode_runner=noop_opencode,
+                    live_watcher=NoWatch(),
+                    tty=False,
+                )
+            self.assertEqual(code, 0)
+            text = buf.getvalue()
+            self.assertIn("[agent] sidecar started", text)
+            self.assertIn("======== agent report ========", text)
+            self.assertNotIn("passthrough=", text)
         with tempfile.TemporaryDirectory() as tmp:
             parsed = parse_agent_argv(
                 [
@@ -77,10 +110,13 @@ class TestCli(unittest.TestCase):
                     parsed,
                     run_sidecar=lambda _argv: 0,
                     run_user=lambda _argv: 0,
+                    opencode_runner=noop_opencode,
+                    live_watcher=NoWatch(),
+                    tty=False,
                 )
             self.assertEqual(code, 0)
             text = buf.getvalue()
-            self.assertIn("[agent] profile=tools-only", text)
+            self.assertIn("[agent] profile=job-assist", text)
             self.assertIn("run_dir=", text)
 
     def test_supervisor_and_report(self) -> None:
@@ -111,6 +147,43 @@ class TestCli(unittest.TestCase):
                 ]
             )
             self.assertEqual(code, 0)
+
+    def test_supervisor_exits_on_agent_stop_file(self) -> None:
+        from agent_sidecar.cli import cmd_supervisor
+
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            started = threading.Event()
+            errors: list[BaseException] = []
+
+            def run() -> None:
+                started.set()
+                try:
+                    cmd_supervisor(
+                        [
+                            "--job-id",
+                            "9",
+                            "--host",
+                            "h1",
+                            "--output-dir",
+                            str(run_dir),
+                            "--skills",
+                            "proc-monitor",
+                        ]
+                    )
+                except BaseException as exc:  # pragma: no cover - test helper
+                    errors.append(exc)
+
+            thread = threading.Thread(target=run, daemon=True)
+            thread.start()
+            self.assertTrue(started.wait(2))
+            time.sleep(0.3)
+            self.assertEqual(errors, [])
+            self.assertTrue(thread.is_alive())
+            (run_dir / ".agent-stop").write_text("stop\n", encoding="utf-8")
+            thread.join(timeout=5)
+            self.assertEqual(errors, [])
+            self.assertFalse(thread.is_alive())
 
     def test_sbatch_requires_script(self) -> None:
         self.assertEqual(main(["sbatch"]), 2)

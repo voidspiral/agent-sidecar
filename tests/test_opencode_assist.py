@@ -10,6 +10,8 @@ sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "src"))
 import json
 import os
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -18,6 +20,7 @@ from agent_sidecar.opencode_assist import (
     OpenCodeError,
     build_assist_prompt,
     default_opencode_runner,
+    note_summary,
 )
 from agent_sidecar.telemetry import write_telemetry
 
@@ -47,6 +50,12 @@ class TestOpenCodeAssist(unittest.TestCase):
         self.assertNotIn(series_line, prompt)
         self.assertIn("scancel", prompt.lower())
 
+    def test_prompt_requires_chinese_summary(self) -> None:
+        prompt = build_assist_prompt(_telemetry(), Path("/tmp/run"))
+        self.assertIn("简体中文", prompt)
+        self.assertIn("improvement suggestions", prompt)
+        self.assertIn("分条", prompt)
+
     def test_launch_failure_asks_for_corrected_command(self) -> None:
         prompt = build_assist_prompt(
             _telemetry(
@@ -69,6 +78,65 @@ class TestOpenCodeAssist(unittest.TestCase):
                     env={},
                 )
         self.assertEqual(ctx.exception.code, "opencode_missing")
+
+    def test_default_runner_returns_when_note_written(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            note = Path(tmp) / "job.json"
+
+            def writer() -> None:
+                time.sleep(0.2)
+                note.write_text(
+                    json.dumps({"summary": "done", "actions": []}),
+                    encoding="utf-8",
+                )
+
+            threading.Thread(target=writer, daemon=True).start()
+            started = time.monotonic()
+            rc, stdout, stderr = default_opencode_runner(
+                ["sleep", "30"],
+                tmp,
+                timeout=10,
+                env={},
+                note_path=note,
+            )
+            elapsed = time.monotonic() - started
+            self.assertEqual(rc, 0)
+            self.assertEqual(stdout, "")
+            self.assertEqual(stderr, "")
+            self.assertLess(elapsed, 5)
+            self.assertEqual(note_summary(note), "done")
+
+    def test_default_runner_cancel_kills_process(self) -> None:
+        cancel = threading.Event()
+
+        def setter() -> None:
+            time.sleep(0.2)
+            cancel.set()
+
+        threading.Thread(target=setter, daemon=True).start()
+        started = time.monotonic()
+        with self.assertRaises(OpenCodeError) as ctx:
+            default_opencode_runner(
+                ["sleep", "30"],
+                ".",
+                timeout=10,
+                env={},
+                cancel=cancel,
+            )
+        self.assertEqual(ctx.exception.code, "opencode_cancelled")
+        self.assertLess(time.monotonic() - started, 5)
+
+    def test_default_runner_timeout_message_is_short(self) -> None:
+        with self.assertRaises(OpenCodeError) as ctx:
+            default_opencode_runner(
+                ["sleep", "30"],
+                ".",
+                timeout=0.3,
+                env={},
+            )
+        self.assertEqual(ctx.exception.code, "opencode_timeout")
+        self.assertIn("0.3", ctx.exception.message)
+        self.assertNotIn("sleep", ctx.exception.message)
 
     def test_model_flag_only_from_opencode_env(self) -> None:
         from agent_sidecar.assist import run_job_assist

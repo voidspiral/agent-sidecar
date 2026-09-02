@@ -61,7 +61,7 @@ echo \"======== 2b. NFS visible on ranks ========\"
 srun -N3 -n3 -l bash -c 'hostname -s; df -h $SHARED; ls -l $BIN; test -x $BIN'
 echo
 echo \"======== 2c. agent srun job-assist + mpi_io_load ${SECONDS_IO}s on $WORK ========\"
-python3 -m agent_sidecar srun --agent-verbose --agent-profile=job-assist \\
+python3 -m agent_sidecar srun --agent-verbose \\
   --agent-skills=proc-monitor,slurm-tap,mpi-scan,node-diag \\
   --agent-output-dir '$OUT' \\
   -n3 -l -- \\

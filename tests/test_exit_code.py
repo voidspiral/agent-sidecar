@@ -33,6 +33,8 @@ class TestExitCode(unittest.TestCase):
                 run_sidecar=run_sidecar,
                 run_user=run_user,
                 collect_errors={"h1": "fetch timeout"},
+                opencode_runner=lambda *a, **k: (0, "ok", ""),
+                tty=False,
             )
             self.assertEqual(code, 7)
             meta = (run_dir / "meta.json").read_text(encoding="utf-8")

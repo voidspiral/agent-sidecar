@@ -32,7 +32,7 @@ def write_node_assist_note(
         "actions": [],
     }
     path = assist / f"{host}.json"
-    path.write_text(json.dumps(note, indent=2) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(note, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return path
 
 
@@ -59,7 +59,7 @@ def write_job_assist_note(
         "actions": [],
     }
     path = assist / "job.json"
-    path.write_text(json.dumps(note, indent=2) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(note, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return path
 
 

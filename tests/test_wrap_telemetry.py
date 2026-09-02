@@ -6,12 +6,14 @@ import sys
 from pathlib import Path as _Path
 
 sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(_Path(__file__).resolve().parent))
 
 import json
 import tempfile
 import unittest
 from pathlib import Path
 
+from agent_fakes import NoWatch, noop_opencode
 from agent_sidecar.argv import parse_agent_argv
 from agent_sidecar.run import wrap_srun
 from agent_sidecar.telemetry import load_telemetry
@@ -32,6 +34,9 @@ def _wrap(tmp: str, *, populate):
         env={},
         run_sidecar=run_sidecar,
         run_user=lambda _argv: 0,
+        opencode_runner=noop_opencode,
+        live_watcher=NoWatch(),
+        tty=False,
     )
     return code, run_dir
 
@@ -74,6 +79,7 @@ class TestWrapTelemetry(unittest.TestCase):
             code, run_dir = _wrap(tmp, populate=populate)
             self.assertEqual(code, 0)
             doc = load_telemetry(run_dir)
+            self.assertTrue((run_dir / ".agent-stop").is_file())
             summary = doc["summary"]
             for key in (
                 "cpu_avg",
@@ -167,6 +173,9 @@ class TestWrapTelemetry(unittest.TestCase):
                 run_sidecar=lambda argv: populate(Path(argv[argv.index("--output-dir") + 1])) or 0,
                 run_user=lambda _a: 0,
                 plotter=plotter,
+                opencode_runner=noop_opencode,
+                live_watcher=NoWatch(),
+                tty=False,
             )
             self.assertEqual(code, 0)
             self.assertTrue(written)
@@ -213,6 +222,9 @@ class TestWrapTelemetry(unittest.TestCase):
                 env={},
                 run_sidecar=run_sidecar,
                 run_user=lambda _a: 0,
+                opencode_runner=noop_opencode,
+                live_watcher=NoWatch(),
+                tty=False,
             )
             self.assertIn("--match", seen)
             self.assertEqual(seen[seen.index("--match") + 1], "mpi_io_load")
@@ -244,5 +256,8 @@ class TestWrapTelemetry(unittest.TestCase):
                 env={},
                 run_sidecar=run_sidecar,
                 run_user=lambda _a: 0,
+                opencode_runner=noop_opencode,
+                live_watcher=NoWatch(),
+                tty=False,
             )
             self.assertEqual(seen[seen.index("--match") + 1], "mpi_io_load")

@@ -15,7 +15,8 @@ context: |
   an inline payload, srun fetch, or SSH.
   Sidecars follow the job: start with the allocation, stop when the job ends.
   LLM must not scrape /proc as the primary collector; node tools collect first.
-  Default placement is tools-only; node-assist and job-assist are optional.
+  Default placement is job-assist (node tools plus submit-host OpenCode);
+  `--agent-profile=tools-only` opts out of OpenCode.
 
 rules:
   proposal:

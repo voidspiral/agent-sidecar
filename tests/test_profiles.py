@@ -1,4 +1,4 @@
-"""Profile tests: default tools-only, unknown flags fail closed."""
+"""Profile tests: default job-assist, unknown flags fail closed."""
 
 from __future__ import annotations
 
@@ -13,8 +13,15 @@ from agent_sidecar.argv import AgentParseError, apply_profile_defaults, parse_ag
 
 
 class TestProfiles(unittest.TestCase):
-    def test_omitted_profile_is_tools_only(self) -> None:
+    def test_omitted_profile_is_job_assist(self) -> None:
         parsed = parse_agent_argv(["srun", "-n", "1", "hostname"])
+        apply_profile_defaults(parsed.options)
+        self.assertEqual(parsed.options.profile, "job-assist")
+
+    def test_explicit_tools_only_is_opt_out(self) -> None:
+        parsed = parse_agent_argv(
+            ["srun", "--agent-profile=tools-only", "-n", "1", "hostname"]
+        )
         apply_profile_defaults(parsed.options)
         self.assertEqual(parsed.options.profile, "tools-only")
 
