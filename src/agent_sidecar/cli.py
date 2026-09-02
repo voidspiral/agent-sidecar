@@ -206,7 +206,7 @@ def main(argv: list[str] | None = None) -> int:
         parsed = parse_agent_argv(argv)
         apply_profile_defaults(parsed.options)
         if parsed.options.node_llm:
-            print("--agent-node-llm is unsupported in phase 1", file=sys.stderr)
+            print("--agent-node-llm is unsupported", file=sys.stderr)
         if parsed.command == "srun":
             return cmd_srun(parsed)
         if parsed.command == "sbatch":

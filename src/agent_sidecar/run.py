@@ -2,22 +2,35 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from agent_sidecar.argv import AgentOptions, ParsedArgv
+from agent_sidecar.assist import run_job_assist
 from agent_sidecar.launch import LaunchPlan, execute_launch, plan_overlap
+from agent_sidecar.llm import load_llm_config
 from agent_sidecar.telemetry import (
+    anomalies_from_artifacts,
     ensure_run_layout,
     make_run_id,
     retry_metadata,
+    rollup_reason_code,
+    summarize_series,
     write_meta,
     write_telemetry,
 )
 
 Runner = Callable[[list[str]], int]
+
+_LLM_ENV_KEYS = (
+    "AGENT_LLM_API_KEY",
+    "AGENT_LLM_BASE_URL",
+    "AGENT_LLM_MODEL",
+    "AGENT_LLM_TIMEOUT",
+)
 
 
 def resolve_output_dir(options: AgentOptions, env: dict[str, str]) -> Path:
@@ -33,6 +46,7 @@ def wrap_srun(
     run_user: Runner,
     overlap_ok: bool = True,
     collect_errors: dict[str, str] | None = None,
+    llm_transport=None,
 ) -> tuple[int, Path, LaunchPlan]:
     out_root = resolve_output_dir(parsed.options, env)
     run_dir = out_root / make_run_id(pid=0)
@@ -41,6 +55,14 @@ def wrap_srun(
     exe = sys.executable
     py_mod = [
         "env",
+        "-u",
+        "AGENT_LLM_API_KEY",
+        "-u",
+        "AGENT_LLM_BASE_URL",
+        "-u",
+        "AGENT_LLM_MODEL",
+        "-u",
+        "AGENT_LLM_TIMEOUT",
         f"PYTHONPATH={src_dir}",
         "PYTHONUNBUFFERED=1",
         exe,
@@ -57,15 +79,27 @@ def wrap_srun(
         "--skills",
         ",".join(parsed.options.skills) or "proc-monitor",
     ]
-    plan = plan_overlap(parsed.passthrough, supervisor)
-    code, used = execute_launch(
-        plan,
-        run_sidecar=run_sidecar,
-        run_user=run_user,
-        overlap_ok=overlap_ok,
-        passthrough=parsed.passthrough,
-        wrap_argv=[*py_mod, "exec-wrap"],
-    )
+    llm_cfg = load_llm_config(parsed.options, env)
+    saved_os = {key: os.environ.get(key) for key in _LLM_ENV_KEYS}
+    for key in _LLM_ENV_KEYS:
+        env.pop(key, None)
+        os.environ.pop(key, None)
+    try:
+        plan = plan_overlap(parsed.passthrough, supervisor)
+        code, used = execute_launch(
+            plan,
+            run_sidecar=run_sidecar,
+            run_user=run_user,
+            overlap_ok=overlap_ok,
+            passthrough=parsed.passthrough,
+            wrap_argv=[*py_mod, "exec-wrap"],
+        )
+    finally:
+        for key, value in saved_os.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
     errors = collect_errors or {}
     retry = retry_metadata(
         user_exit=None if (not overlap_ok and used.fallback_used and code == 0) else code,
@@ -83,18 +117,39 @@ def wrap_srun(
             "exit_code": code,
         },
     )
-    reason = "ok" if code == 0 else "execution_error"
+    summary = summarize_series(run_dir)
+    summary["exit_code"] = code
+    anomalies = anomalies_from_artifacts(run_dir)
+    reason = rollup_reason_code(anomalies, user_exit=code)
+    evidence = ["meta.json", "telemetry.json"]
+    events_dir = run_dir / "events"
+    if events_dir.is_dir():
+        evidence.extend(
+            sorted(str(p.relative_to(run_dir)) for p in events_dir.iterdir() if p.is_file())
+        )
+    series_dir = run_dir / "series"
+    if series_dir.is_dir():
+        evidence.extend(
+            sorted(str(p.relative_to(run_dir)) for p in series_dir.glob("*.jsonl"))
+        )
     extra: dict[str, Any] = {"collect_errors": errors}
     write_telemetry(
         run_dir,
-        summary={"exit_code": code},
-        anomalies=[],
-        evidence_paths=["meta.json", "telemetry.json"],
+        summary=summary,
+        anomalies=anomalies,
+        evidence_paths=evidence,
         reason_code=reason,
         retry_allowed=bool(retry["retry_allowed"]),
         attempt=int(retry["attempt"]),
         extra=extra,
     )
+    if parsed.options.profile == "job-assist":
+        run_job_assist(
+            run_dir,
+            cfg=llm_cfg,
+            user_exit=code,
+            transport=llm_transport,
+        )
     return code, run_dir, used
 
 

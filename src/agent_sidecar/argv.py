@@ -13,6 +13,8 @@ KNOWN_AGENT_FLAGS = {
     "agent-launcher",
     "agent-hosts",
     "agent-verbose",
+    "agent-llm-base-url",
+    "agent-llm-model",
 }
 
 BOOLEAN_AGENT_FLAGS = {"agent-node-llm", "agent-verbose"}
@@ -35,6 +37,8 @@ class AgentOptions:
     verbose: bool = False
     launcher: str | None = None
     hosts: str | None = None
+    llm_base_url: str | None = None
+    llm_model: str | None = None
 
 
 @dataclass
@@ -102,6 +106,10 @@ def _assign(options: AgentOptions, name: str, value: str, *, present: bool) -> N
         options.launcher = value
     elif name == "agent-hosts":
         options.hosts = value
+    elif name == "agent-llm-base-url":
+        options.llm_base_url = value
+    elif name == "agent-llm-model":
+        options.llm_model = value
 
 
 def validate_profile(profile: str) -> str:

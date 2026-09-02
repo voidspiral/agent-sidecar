@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from agent_sidecar.classify import classify_mpi_text, classify_slurm_state
+
 
 def make_run_id(*, now: datetime | None = None, pid: int = 0) -> str:
     now = now or datetime.now(timezone.utc)
@@ -100,3 +102,64 @@ def summarize_series(run_dir: Path) -> dict[str, Any]:
         "io_read_bps_sum": io_r,
         "io_write_bps_sum": io_w,
     }
+
+
+def anomalies_from_artifacts(run_dir: Path) -> list[dict[str, Any]]:
+    events_dir = run_dir / "events"
+    if not events_dir.is_dir():
+        return []
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for path in sorted(events_dir.iterdir()):
+        if not path.is_file():
+            continue
+        rel = str(path.relative_to(run_dir)) if path.is_relative_to(run_dir) else str(path)
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if path.suffix == ".json":
+            try:
+                data = json.loads(text)
+            except json.JSONDecodeError:
+                data = {}
+            if isinstance(data, dict):
+                state = str(data.get("JobState") or data.get("State") or "")
+                code = classify_slurm_state(state)
+                if code:
+                    key = (code, rel)
+                    if key not in seen:
+                        seen.add(key)
+                        out.append(
+                            {"reason_code": code, "message": state, "evidence_path": rel}
+                        )
+        mpi = classify_mpi_text(text)
+        if mpi:
+            key = (mpi, rel)
+            if key not in seen:
+                seen.add(key)
+                out.append(
+                    {
+                        "reason_code": mpi,
+                        "message": "mpi runtime fault",
+                        "evidence_path": rel,
+                    }
+                )
+        lowered = text.lower()
+        if path.name.startswith("node-diag") and (
+            "killed process" in lowered or "oom_pids=[" in lowered and "oom_pids=[]" not in lowered
+        ):
+            key = ("node_local", rel)
+            if key not in seen:
+                seen.add(key)
+                out.append(
+                    {
+                        "reason_code": "node_local",
+                        "message": "node-local oom",
+                        "evidence_path": rel,
+                    }
+                )
+    return out
+
+
+def rollup_reason_code(anomalies: list[dict[str, Any]], *, user_exit: int) -> str:
+    if anomalies:
+        return str(anomalies[0]["reason_code"])
+    return "ok" if user_exit == 0 else "execution_error"
