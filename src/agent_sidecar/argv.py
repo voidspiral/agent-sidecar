@@ -15,6 +15,8 @@ KNOWN_AGENT_FLAGS = {
     "agent-verbose",
     "agent-llm-base-url",
     "agent-llm-model",
+    "agent-match",
+    "agent-interval",
 }
 
 BOOLEAN_AGENT_FLAGS = {"agent-node-llm", "agent-verbose"}
@@ -39,6 +41,8 @@ class AgentOptions:
     hosts: str | None = None
     llm_base_url: str | None = None
     llm_model: str | None = None
+    match: str | None = None
+    interval: float = 1.0
 
 
 @dataclass
@@ -110,6 +114,13 @@ def _assign(options: AgentOptions, name: str, value: str, *, present: bool) -> N
         options.llm_base_url = value
     elif name == "agent-llm-model":
         options.llm_model = value
+    elif name == "agent-match":
+        options.match = value
+    elif name == "agent-interval":
+        try:
+            options.interval = float(value)
+        except ValueError as exc:
+            raise AgentParseError(f"invalid --agent-interval={value}") from exc
 
 
 def validate_profile(profile: str) -> str:

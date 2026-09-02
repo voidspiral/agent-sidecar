@@ -52,3 +52,20 @@ class TestArgv(unittest.TestCase):
         )
         self.assertEqual(parsed.options.profile, "job-assist")
         self.assertEqual(parsed.passthrough, ["-n", "1", "hostname"])
+
+    def test_agent_match_flag(self) -> None:
+        parsed = parse_agent_argv(
+            [
+                "srun",
+                "--agent-match=mpi_io_load",
+                "--agent-interval=0.5",
+                "-n",
+                "1",
+                "--",
+                "python3",
+                "app.py",
+            ]
+        )
+        self.assertEqual(parsed.options.match, "mpi_io_load")
+        self.assertEqual(parsed.options.interval, 0.5)
+        self.assertEqual(parsed.passthrough, ["-n", "1", "--", "python3", "app.py"])

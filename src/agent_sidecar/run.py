@@ -22,6 +22,7 @@ from agent_sidecar.telemetry import (
     write_meta,
     write_telemetry,
 )
+from agent_sidecar.tools.plot import plot_run
 
 Runner = Callable[[list[str]], int]
 
@@ -30,7 +31,57 @@ _LLM_ENV_KEYS = (
     "AGENT_LLM_BASE_URL",
     "AGENT_LLM_MODEL",
     "AGENT_LLM_TIMEOUT",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_MODEL",
 )
+
+DEFAULT_MPI_MONITOR_SRC = "/shared/mpi-monitor/src"
+LAUNCHERS = {
+    "srun",
+    "mpirun",
+    "mpiexec",
+    "orted",
+    "orterun",
+    "prted",
+    "prterun",
+}
+
+
+def resolve_output_dir(options: AgentOptions, env: dict[str, str]) -> Path:
+    raw = options.output_dir or env.get("AGENT_JOB_DIR") or "runs"
+    return Path(raw)
+
+
+def sidecar_pythonpath(src_dir: str, env: dict[str, str]) -> str:
+    mpi = env.get("AGENT_MPI_MONITOR_SRC") or DEFAULT_MPI_MONITOR_SRC
+    return f"{src_dir}:{mpi}"
+
+
+def user_command_match(passthrough: list[str], override: str | None) -> str:
+    if override:
+        return override
+    args = list(passthrough)
+    if "--" in args:
+        cmd = args[args.index("--") + 1 :]
+    else:
+        cmd = [t for t in args if not t.startswith("-")]
+    if not cmd:
+        return ""
+    name = Path(cmd[0]).name
+    if name in LAUNCHERS:
+        return ""
+    return name
+
+
+def merge_event_errors(run_dir: Path, errors: dict[str, str]) -> dict[str, str]:
+    events_dir = run_dir / "events"
+    if not events_dir.is_dir():
+        return errors
+    for path in events_dir.glob("*.err"):
+        errors[path.stem] = path.read_text(encoding="utf-8", errors="replace")[:500]
+    return errors
 
 
 def resolve_output_dir(options: AgentOptions, env: dict[str, str]) -> Path:
@@ -47,28 +98,27 @@ def wrap_srun(
     overlap_ok: bool = True,
     collect_errors: dict[str, str] | None = None,
     llm_transport=None,
+    plotter=None,
 ) -> tuple[int, Path, LaunchPlan]:
     out_root = resolve_output_dir(parsed.options, env)
     run_dir = out_root / make_run_id(pid=0)
     ensure_run_layout(run_dir)
     src_dir = str(Path(__file__).resolve().parents[1])
     exe = sys.executable
+    py_path = sidecar_pythonpath(src_dir, env)
+    unset_flags: list[str] = []
+    for key in _LLM_ENV_KEYS:
+        unset_flags.extend(["-u", key])
     py_mod = [
         "env",
-        "-u",
-        "AGENT_LLM_API_KEY",
-        "-u",
-        "AGENT_LLM_BASE_URL",
-        "-u",
-        "AGENT_LLM_MODEL",
-        "-u",
-        "AGENT_LLM_TIMEOUT",
-        f"PYTHONPATH={src_dir}",
+        *unset_flags,
+        f"PYTHONPATH={py_path}",
         "PYTHONUNBUFFERED=1",
         exe,
         "-m",
         "agent_sidecar",
     ]
+    match = user_command_match(parsed.passthrough, parsed.options.match)
     supervisor = [
         *py_mod,
         "supervisor",
@@ -78,6 +128,10 @@ def wrap_srun(
         str(run_dir),
         "--skills",
         ",".join(parsed.options.skills) or "proc-monitor",
+        "--match",
+        match,
+        "--interval",
+        str(parsed.options.interval),
     ]
     llm_cfg = load_llm_config(parsed.options, env)
     saved_os = {key: os.environ.get(key) for key in _LLM_ENV_KEYS}
@@ -101,6 +155,7 @@ def wrap_srun(
             else:
                 os.environ[key] = value
     errors = collect_errors or {}
+    errors = merge_event_errors(run_dir, errors)
     retry = retry_metadata(
         user_exit=None if (not overlap_ok and used.fallback_used and code == 0) else code,
         overlap_failed_before_start=used.fallback_used and not overlap_ok,
@@ -132,6 +187,15 @@ def wrap_srun(
         evidence.extend(
             sorted(str(p.relative_to(run_dir)) for p in series_dir.glob("*.jsonl"))
         )
+        jsonl = list(series_dir.glob("*.jsonl"))
+        if jsonl:
+            try:
+                for path in plot_run(run_dir, plotter=plotter):
+                    rel = str(path.relative_to(run_dir)) if path.is_absolute() else str(path)
+                    if rel not in evidence:
+                        evidence.append(rel)
+            except Exception as exc:  # pragma: no cover - plot backend
+                errors["plot"] = str(exc)[:500]
     extra: dict[str, Any] = {"collect_errors": errors}
     write_telemetry(
         run_dir,

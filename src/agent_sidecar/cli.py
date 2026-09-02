@@ -154,16 +154,25 @@ def cmd_supervisor(argv: list[str]) -> int:
     p.add_argument("--host", default=os.uname().nodename.split(".")[0])
     p.add_argument("--output-dir", required=True, type=Path)
     p.add_argument("--skills", default="proc-monitor")
+    p.add_argument("--match", default="")
+    p.add_argument("--interval", type=float, default=1.0)
     p.add_argument("--once", action="store_true", help="start plugins and exit (tests)")
     ns = p.parse_args(argv)
     skills = tuple(s for s in ns.skills.split(",") if s)
-    ctx = JobContext(job_id=ns.job_id, host=ns.host, output_dir=ns.output_dir)
+    ctx = JobContext(
+        job_id=ns.job_id,
+        host=ns.host,
+        output_dir=ns.output_dir,
+        match=ns.match or None,
+        interval=ns.interval,
+    )
     print(
         f"[sidecar] host={ns.host} job={ns.job_id} pid={os.getpid()} skills={','.join(skills)}",
         flush=True,
     )
     sup = start_supervisor(ns.job_id, ns.host, _plugins_for(skills), ctx)
     if ns.once:
+        sup.stop()
         return 0
     stop = {"n": False}
 
