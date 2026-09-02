@@ -43,9 +43,10 @@ if [[ -z "$MPICC" ]]; then
   echo "mpicc not found" >&2
   exit 1
 fi
-make -C "$ROOT/examples" CC="$MPICC"
 BIN="$ROOT/examples/mpi_io_load"
+"$MPICC" -O2 -Wall -Wextra -o "$BIN" "$ROOT/examples/mpi_io_load.c"
 test -x "$BIN"
+echo "compiled $BIN with $MPICC"
 echo
 
 echo "======== 1b. copy tree to cn1,cn2,cn3 ========"
@@ -61,9 +62,15 @@ set -u
 export PYTHONPATH='$PYTHONPATH'
 export PYTHONUNBUFFERED=1
 export AGENT_VERBOSE=1
+if [[ -f '$ENV_FILE' ]]; then
+  set -a
+  . '$ENV_FILE'
+  set +a
+fi
 echo \"======== 2a. allocation ========\"
 echo \"SLURM_JOB_ID=\$SLURM_JOB_ID\"
 echo \"SLURM_NODELIST=\$SLURM_NODELIST\"
+echo \"model=\${AGENT_LLM_MODEL:-unset}\"
 echo
 echo \"======== 2b. stage binary ========\"
 srun -N3 -n3 -l mkdir -p /tmp/agent-sidecar/examples
@@ -75,10 +82,6 @@ fi
 srun -N3 -n3 -l bash -c 'chmod +x /tmp/agent-sidecar/examples/mpi_io_load; ls -l /tmp/agent-sidecar/examples/mpi_io_load; hostname -s'
 echo
 echo \"======== 2c. agent srun job-assist + mpi_io_load ${SECONDS_IO}s ========\"
-AGENT_LLM_BASE_URL='${AGENT_LLM_BASE_URL:-}' \\
-AGENT_LLM_API_KEY='${AGENT_LLM_API_KEY:-}' \\
-AGENT_LLM_MODEL='${AGENT_LLM_MODEL:-}' \\
-AGENT_LLM_TIMEOUT='${AGENT_LLM_TIMEOUT:-30}' \\
 python3 -m agent_sidecar srun --agent-verbose --agent-profile=job-assist \\
   --agent-skills=proc-monitor,slurm-tap,mpi-scan,node-diag \\
   --agent-output-dir '$OUT' \\
