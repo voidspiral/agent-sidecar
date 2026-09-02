@@ -51,13 +51,13 @@ agent srun --agent-profile=tools-only \
 | `--agent-interval` | 采样间隔秒（默认 `1.0`） |
 
 `job-assist` 在提交端、写出 `telemetry.json` 之后调用一次 OpenCode
-（`opencode run --dir <本仓库>`），不再 `POST /chat/completions`，也不在计算
-节点上跑模型。OpenCode 使用操作员已有的 Anthropic 兼容环境变量
-（`ANTHROPIC_*`）。这些变量会从 sidecar `srun` 里剥掉。缺少 `opencode` 时
-**不会**回退 HTTP。
+（`opencode run --dir <本仓库>`），不再 `POST /chat/completions`，不 source
+任何供应商 env 文件，也不在计算节点上跑模型。OpenCode 用登录节点上自己的
+配置。进程环境里若已有供应商变量，会从 sidecar `srun` 剥掉。缺少 `opencode`
+时 **不会** 回退 HTTP。
 
 ```bash
-# 在 mn 上 source 操作员 env（给 OpenCode 的 ANTHROPIC_*）；不要把密钥拷到计算节点或 git
+# 在 mn 上；凭据留在 OpenCode 自己的配置里，不要拷到计算节点或 git
 
 python3 -m agent_sidecar srun --agent-profile=job-assist \
   --agent-skills=proc-monitor,slurm-tap,mpi-scan,node-diag \
@@ -72,9 +72,7 @@ python3 -m agent_sidecar srun --agent-profile=job-assist \
 mpi-monitor 源码默认 `/shared/mpi-monitor/src`，可用 `AGENT_MPI_MONITOR_SRC`
 覆盖。有 matplotlib 时 wrap 会在 `charts/` 写出 PNG。
 
-固定 OpenCode 模型请设 `AGENT_OPENCODE_MODEL`（`provider/model`）。不要把
-`AGENT_LLM_MODEL` 传给 OpenCode。提交主机上的 `ANTHROPIC_*` 会留给 OpenCode
-子进程（若只有 `ANTHROPIC_AUTH_TOKEN` 会复制为 `ANTHROPIC_API_KEY`）。
+可选：设 `AGENT_OPENCODE_MODEL`（`provider/model`）固定模型。
 
 约 60 秒、带 IO 的 MPI 示例见 `examples/mpi_io_load.c`。本集群 NFS 挂在
 `/shared`（`mn:/shared`）。源码、二进制、IO scratch 和 run 产物都放这里，
@@ -95,7 +93,7 @@ bash /shared/agent-sidecar/scripts/demo_opencode_launch_fail.sh
 ```
 
 作业把每 rank 文件写到 `/shared/mpi-io`（可用 `AGENT_MPI_WORKDIR` 覆盖）。
-密钥仍只留在登录节点的操作员 env 文件里，不上 NFS。
+OpenCode 凭据留在登录节点 OpenCode 自己的配置里，不上 NFS、不进本仓库。
 
 OpenCode 常驻说明：`AGENTS.md`（与 `agent.md` 同文）。Skills：
 `.opencode/skills/`。

@@ -6,7 +6,6 @@ ROOT="${1:-$SHARED/agent-sidecar}"
 OUT="${2:-$SHARED/agent-runs}"
 WORK="${AGENT_MPI_WORKDIR:-$SHARED/mpi-io}"
 SECONDS_IO="${AGENT_MPI_SECONDS:-60}"
-ENV_FILE="${AGENT_LLM_ENV_FILE:-/root/.config/agent-sidecar/deepseek.env}"
 MPI_SRC="${AGENT_MPI_MONITOR_SRC:-$SHARED/mpi-monitor/src}"
 
 export PYTHONPATH="${ROOT}/src:${MPI_SRC}${PYTHONPATH:+:$PYTHONPATH}"
@@ -14,19 +13,11 @@ export PYTHONUNBUFFERED=1
 export AGENT_VERBOSE=1
 mkdir -p "$OUT" "$WORK"
 
-if [[ -f "$ENV_FILE" ]]; then
-  # shellcheck disable=SC1090
-  set -a
-  # shellcheck disable=SC1090
-  . "$ENV_FILE"
-  set +a
-fi
-
 echo "======== 0. launch host ========"
 echo "host=$(hostname -s) user=$(whoami) date=$(date -Is)"
 echo "shared=$SHARED root=$ROOT out=$OUT work=$WORK"
 echo "profile=job-assist opencode=$(command -v opencode || echo missing)"
-echo "model=${AGENT_LLM_MODEL:-unset} anthropic_base=${ANTHROPIC_BASE_URL:-unset}"
+echo "opencode_model=${AGENT_OPENCODE_MODEL:-default}"
 if ! command -v opencode >/dev/null 2>&1; then
   echo "opencode is not on PATH; install it on mn or stop. No HTTP fallback." >&2
   exit 2
@@ -61,15 +52,10 @@ set -u
 export PYTHONPATH='$PYTHONPATH'
 export PYTHONUNBUFFERED=1
 export AGENT_VERBOSE=1
-if [[ -f '$ENV_FILE' ]]; then
-  set -a
-  . '$ENV_FILE'
-  set +a
-fi
 echo \"======== 2a. allocation ========\"
 echo \"SLURM_JOB_ID=\$SLURM_JOB_ID\"
 echo \"SLURM_NODELIST=\$SLURM_NODELIST\"
-echo \"model=\${AGENT_LLM_MODEL:-unset}\"
+echo \"opencode_model=\${AGENT_OPENCODE_MODEL:-default}\"
 echo
 echo \"======== 2b. NFS visible on ranks ========\"
 srun -N3 -n3 -l bash -c 'hostname -s; df -h $SHARED; ls -l $BIN; test -x $BIN'

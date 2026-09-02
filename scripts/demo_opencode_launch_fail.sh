@@ -5,7 +5,6 @@ set -u
 SHARED="${AGENT_SHARED:-/shared}"
 ROOT="${1:-$SHARED/agent-sidecar}"
 OUT="${2:-$SHARED/agent-runs}"
-ENV_FILE="${AGENT_LLM_ENV_FILE:-/root/.config/agent-sidecar/deepseek.env}"
 MISSING="${AGENT_LAUNCH_FAIL_BIN:-$ROOT/examples/no-such-mpi}"
 MPI_SRC="${AGENT_MPI_MONITOR_SRC:-$SHARED/mpi-monitor/src}"
 
@@ -13,14 +12,6 @@ export PYTHONPATH="${ROOT}/src:${MPI_SRC}${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONUNBUFFERED=1
 export AGENT_VERBOSE=1
 mkdir -p "$OUT"
-
-if [[ -f "$ENV_FILE" ]]; then
-  # shellcheck disable=SC1090
-  set -a
-  # shellcheck disable=SC1090
-  . "$ENV_FILE"
-  set +a
-fi
 
 echo "======== 0. launch-fail fixture ========"
 echo "host=$(hostname -s) missing=$MISSING"
@@ -38,11 +29,6 @@ set -u
 export PYTHONPATH='$PYTHONPATH'
 export PYTHONUNBUFFERED=1
 export AGENT_VERBOSE=1
-if [[ -f '$ENV_FILE' ]]; then
-  set -a
-  . '$ENV_FILE'
-  set +a
-fi
 echo \"======== 1. agent srun missing binary ========\"
 python3 -m agent_sidecar srun --agent-verbose --agent-profile=job-assist \\
   --agent-skills=proc-monitor,slurm-tap,mpi-scan,node-diag \\

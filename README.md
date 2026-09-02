@@ -44,14 +44,13 @@ Default `--agent-profile` is `tools-only` (deterministic node tools, no LLM).
 
 Job-assist runs **once on the submit host** after `telemetry.json` is written.
 It spawns OpenCode (`opencode run --dir <this repo>`). It does not POST
-`/chat/completions` and does not run on compute nodes. OpenCode uses the
-operator's existing Anthropic-compat env (`ANTHROPIC_*`). Those variables are
-stripped from sidecar `srun`. There is **no HTTP fallback** if `opencode` is
-missing.
+`/chat/completions`, does not source a provider env file, and does not run on
+compute nodes. OpenCode uses its own login-host config. Provider keys that
+happen to be in the process environment are stripped from sidecar `srun`.
+There is **no HTTP fallback** if `opencode` is missing.
 
 ```bash
-# on mn; do not copy keys to compute nodes or git
-# source the operator env file that sets ANTHROPIC_* for OpenCode
+# on mn; OpenCode credentials stay in OpenCode's own config, not this repo
 
 agent srun --agent-profile=job-assist \
   --agent-skills=proc-monitor,slurm-tap,mpi-scan,node-diag \
@@ -64,11 +63,7 @@ Missing OpenCode or runner errors are recorded in `collect_errors`
 the user command exit code. The model must not change `reason_code`.
 `--agent-node-llm` still does not start a per-node model.
 
-Set `AGENT_OPENCODE_MODEL` (OpenCode `provider/model`) to pin the model.
-`AGENT_LLM_MODEL` is not passed through — that id is for the retired HTTP
-client and can crash OpenCode if prefixed as `anthropic/...`. OpenCode still
-inherits `ANTHROPIC_*` on the submit host (`ANTHROPIC_AUTH_TOKEN` is also
-copied to `ANTHROPIC_API_KEY` for the child).
+Optional: set `AGENT_OPENCODE_MODEL` (`provider/model`) to pin the model.
 
 Set `AGENT_MPI_MONITOR_SRC` if mpi-monitor is not at `/shared/mpi-monitor/src`.
 Wrap writes optional PNG under `charts/` when matplotlib is installed.
@@ -92,8 +87,8 @@ bash /shared/agent-sidecar/scripts/demo_opencode_launch_fail.sh
 ```
 
 The sample writes per-rank files under `/shared/mpi-io` (override with
-`AGENT_MPI_WORKDIR`). Provider keys stay on the login host
-(operator env file), not on NFS.
+`AGENT_MPI_WORKDIR`). OpenCode credentials stay in OpenCode's login-host
+config, not in this repo and not on NFS.
 
 Standing OpenCode instructions: `AGENTS.md` (same text as `agent.md`). Skills:
 `.opencode/skills/`.
