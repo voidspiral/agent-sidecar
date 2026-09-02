@@ -64,6 +64,12 @@ Missing OpenCode or runner errors are recorded in `collect_errors`
 the user command exit code. The model must not change `reason_code`.
 `--agent-node-llm` still does not start a per-node model.
 
+Set `AGENT_OPENCODE_MODEL` (OpenCode `provider/model`) to pin the model.
+`AGENT_LLM_MODEL` is not passed through — that id is for the retired HTTP
+client and can crash OpenCode if prefixed as `anthropic/...`. OpenCode still
+inherits `ANTHROPIC_*` on the submit host (`ANTHROPIC_AUTH_TOKEN` is also
+copied to `ANTHROPIC_API_KEY` for the child).
+
 Set `AGENT_MPI_MONITOR_SRC` if mpi-monitor is not at `/shared/mpi-monitor/src`.
 Wrap writes optional PNG under `charts/` when matplotlib is installed.
 

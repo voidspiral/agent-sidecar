@@ -8,6 +8,7 @@ from pathlib import Path as _Path
 sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "src"))
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -68,3 +69,31 @@ class TestOpenCodeAssist(unittest.TestCase):
                     env={},
                 )
         self.assertEqual(ctx.exception.code, "opencode_missing")
+
+    def test_model_flag_only_from_opencode_env(self) -> None:
+        from agent_sidecar.assist import run_job_assist
+
+        def runner(argv, cwd, timeout, env=None):
+            runner.argv = argv
+            return 0, "ok", ""
+
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            write_telemetry(
+                run_dir,
+                summary={"exit_code": 0},
+                anomalies=[],
+                evidence_paths=[],
+                reason_code="ok",
+                retry_allowed=False,
+                attempt=1,
+                extra={"collect_errors": {}},
+            )
+            with patch.dict(os.environ, {"AGENT_LLM_MODEL": "deepseek-v4-flash"}, clear=False):
+                os.environ.pop("AGENT_OPENCODE_MODEL", None)
+                run_job_assist(run_dir, opencode_runner=runner, user_exit=0)
+            self.assertNotIn("--model", runner.argv)
+            with patch.dict(os.environ, {"AGENT_OPENCODE_MODEL": "anthropic/deepseek-v4-flash"}):
+                run_job_assist(run_dir, opencode_runner=runner, user_exit=0)
+            self.assertIn("--model", runner.argv)
+            self.assertIn("anthropic/deepseek-v4-flash", runner.argv)

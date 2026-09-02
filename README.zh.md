@@ -72,6 +72,10 @@ python3 -m agent_sidecar srun --agent-profile=job-assist \
 mpi-monitor 源码默认 `/shared/mpi-monitor/src`，可用 `AGENT_MPI_MONITOR_SRC`
 覆盖。有 matplotlib 时 wrap 会在 `charts/` 写出 PNG。
 
+固定 OpenCode 模型请设 `AGENT_OPENCODE_MODEL`（`provider/model`）。不要把
+`AGENT_LLM_MODEL` 传给 OpenCode。提交主机上的 `ANTHROPIC_*` 会留给 OpenCode
+子进程（若只有 `ANTHROPIC_AUTH_TOKEN` 会复制为 `ANTHROPIC_API_KEY`）。
+
 约 60 秒、带 IO 的 MPI 示例见 `examples/mpi_io_load.c`。本集群 NFS 挂在
 `/shared`（`mn:/shared`）。源码、二进制、IO scratch 和 run 产物都放这里，
 各节点同一份文件：

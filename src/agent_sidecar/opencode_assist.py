@@ -56,6 +56,9 @@ def default_opencode_runner(
 ) -> tuple[int, str, str]:
     if not argv or shutil.which(argv[0]) is None:
         raise OpenCodeError("opencode_missing", "opencode not on PATH")
+    child_env = dict(env) if env is not None else dict(os.environ)
+    if not child_env.get("ANTHROPIC_API_KEY") and child_env.get("ANTHROPIC_AUTH_TOKEN"):
+        child_env["ANTHROPIC_API_KEY"] = child_env["ANTHROPIC_AUTH_TOKEN"]
     try:
         proc = subprocess.run(
             argv,
@@ -63,7 +66,7 @@ def default_opencode_runner(
             timeout=timeout,
             capture_output=True,
             text=True,
-            env=env,
+            env=child_env,
             stdin=subprocess.DEVNULL,
         )
     except subprocess.TimeoutExpired as exc:
@@ -111,10 +114,6 @@ def run_opencode_assist(
         prompt,
     ]
     model = os.environ.get("AGENT_OPENCODE_MODEL") or ""
-    if not model:
-        raw = os.environ.get("AGENT_LLM_MODEL") or os.environ.get("ANTHROPIC_MODEL") or ""
-        if raw:
-            model = raw if "/" in raw else f"anthropic/{raw}"
     if model:
         argv[6:6] = ["--model", model]
     send = opencode_runner or default_opencode_runner
