@@ -44,6 +44,17 @@ class TestArgv(unittest.TestCase):
         self.assertEqual(parsed.options.profile, "job-assist")
         self.assertTrue(parsed.options.quiet)
 
+    def test_omitted_skills_enable_all_node_plugins(self) -> None:
+        from agent_sidecar.argv import DEFAULT_SKILLS, apply_profile_defaults
+
+        parsed = parse_agent_argv(["srun", "-n", "1", "--", "hostname"])
+        apply_profile_defaults(parsed.options)
+        self.assertEqual(
+            parsed.options.skills,
+            ("proc-monitor", "mpi-scan", "slurm-tap", "node-diag"),
+        )
+        self.assertEqual(parsed.options.skills, DEFAULT_SKILLS)
+
     def test_verbose_disables_default_quiet(self) -> None:
         from agent_sidecar.argv import agent_quiet
 

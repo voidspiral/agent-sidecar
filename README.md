@@ -29,7 +29,7 @@ agent srun -N 2 -n 4 -- ./app
 ```
 
 Default `--agent-profile` is `job-assist`. `--agent-skills` defaults to
-`proc-monitor`. If `/shared` exists, the output directory defaults to
+`proc-monitor,mpi-scan,slurm-tap,node-diag`. If `/shared` exists, the output directory defaults to
 `/shared/agent-runs`. Logging defaults to quiet (key steps + final report).
 `--agent-verbose` prints the full launch trace. `--agent-profile=tools-only`
 skips OpenCode.
@@ -65,6 +65,7 @@ the user command exit code. The model must not change `reason_code`.
 `--agent-node-llm` still does not start a per-node model.
 
 Optional: set `AGENT_OPENCODE_MODEL` (`provider/model`) to pin the model.
+Final job-assist timeout defaults to 300s (`AGENT_OPENCODE_TIMEOUT`).
 
 Set `AGENT_MPI_MONITOR_SRC` if mpi-monitor is not at `/shared/mpi-monitor/src`.
 Wrap writes optional PNG under `charts/` when matplotlib is installed.
@@ -94,7 +95,46 @@ config, not in this repo and not on NFS.
 Standing instructions live in tool directories (OpenCode is the job-assist
 LLM; Cursor is local debug): `.opencode/AGENTS.md`,
 `.opencode/agent/job-assist.md`, `.cursor/rules/job-assist.mdc`.
-Chinese: `.opencode/AGENTS.zh.md`. Skills: `.opencode/skills/`.
+Chinese: `.opencode/AGENTS.zh.md`. OpenCode skills: `.opencode/skills/`
+(index: [.opencode/skills.md](.opencode/skills.md)).
+
+## Implemented skills
+
+Two layers. `--agent-skills` selects deterministic compute-node tools.
+`.opencode/skills/` are submit-host OpenCode skills that interpret those
+artifacts.
+
+### Node tools (`--agent-skills`)
+
+Default is all four node tools:
+`proc-monitor,mpi-scan,slurm-tap,node-diag`. Comma-separate to override.
+
+| Name | Role | Artifacts |
+|------|------|-----------|
+| `proc-monitor` | Sample matched user PIDs for CPU/RSS/IO via mpi-monitor `collect_loop` | `series/{host}_pid{pid}.jsonl`; `charts/*.png` when matplotlib is present |
+| `mpi-scan` | Scan MPI/launcher stderr for abort patterns | `events/stderr.tail` |
+| `slurm-tap` | Parse scontrol/sstat/sacct job state | `events/slurm.json` |
+| `node-diag` | Collect local OOM / cgroup / hang on the compute node; refresh on `stop` | `events/node-diag.txt` |
+
+Launchers (`srun`, `mpirun`, `orted`, …) are never sampled by `proc-monitor`.
+
+`node-diag` reads `dmesg` or `/dev/kmsg`, plus the job cgroup's
+`cgroup.procs` and `memory.events` (v1: `memory.oom_control`). It emits
+`node_local` only for job-scoped OOM (cgroup PID intersection or an
+`oom_kill` increase) or a hang-only snapshot. Historical `Killed process`
+lines from other jobs are ignored. Read failures write
+`events/node_diag.err` and do not change the user exit code.
+
+### OpenCode skills (`.opencode/skills/`)
+
+Loaded by job-assist on the login host. They do not run a model on compute
+nodes. Full index: [.opencode/skills.md](.opencode/skills.md).
+
+| Skill | When to use |
+|-------|-------------|
+| [mpi-monitor](.opencode/skills/mpi-monitor/SKILL.md) | Interpret CPU/RSS/IO from `series/` and `charts/` paths; empty series vs start failure |
+| [launch-fail](.opencode/skills/launch-fail/SKILL.md) | `reason_code=execution_error` and `pid_count=0` (ENOENT / binary not on NFS) |
+| [node-diag](.opencode/skills/node-diag/SKILL.md) | `reason_code=node_local` or `events/node-diag.txt` shows in-job OOM / cgroup `oom_kill` / NFS hang |
 
 ## Test cluster
 

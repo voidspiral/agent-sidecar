@@ -4,12 +4,19 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from agent_sidecar.argv import AgentOptions, ParsedArgv, agent_quiet, apply_profile_defaults
+from agent_sidecar.argv import (
+    DEFAULT_SKILLS,
+    AgentOptions,
+    ParsedArgv,
+    agent_quiet,
+    apply_profile_defaults,
+)
 from agent_sidecar.assist import run_job_assist
 from agent_sidecar.launch import LaunchPlan, execute_launch, plan_overlap
 from agent_sidecar.live_opencode import ATTACH_HINT, LiveWatcher
@@ -41,6 +48,8 @@ _LLM_ENV_KEYS = (
 DEFAULT_MPI_MONITOR_SRC = "/shared/mpi-monitor/src"
 DEFAULT_JOB_DIR_SHARED = "/shared/agent-runs"
 AGENT_STOP_NAME = ".agent-stop"
+STDERR_TAIL_MAX = 8000
+AGENT_STDERR_TAIL = "AGENT_STDERR_TAIL"
 LAUNCHERS = {
     "srun",
     "mpirun",
@@ -59,6 +68,41 @@ def resolve_output_dir(options: AgentOptions, env: dict[str, str]) -> Path:
     path = Path(raw)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def run_user_command(argv: list[str], *, tail_path: Path | str | None = None) -> int:
+    """Run the user argv and keep the last STDERR_TAIL_MAX bytes of combined stdio."""
+    dest_raw = tail_path if tail_path is not None else os.environ.get(AGENT_STDERR_TAIL)
+    dest = Path(dest_raw) if dest_raw else None
+    if dest is None:
+        return subprocess.call(argv)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    proc = subprocess.Popen(
+        argv,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    chunks: list[str] = []
+    size = 0
+    try:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            chunks.append(line)
+            size += len(line)
+            if size > STDERR_TAIL_MAX * 2:
+                blob = "".join(chunks)[-STDERR_TAIL_MAX:]
+                chunks = [blob]
+                size = len(blob)
+    finally:
+        if proc.stdout is not None:
+            proc.stdout.close()
+    rc = proc.wait()
+    dest.write_text("".join(chunks)[-STDERR_TAIL_MAX:], encoding="utf-8")
+    return rc
 
 
 def sidecar_pythonpath(src_dir: str, env: dict[str, str]) -> str:
@@ -113,6 +157,7 @@ def wrap_srun(
     opencode_runner=None,
     live_watcher=None,
     tty: bool | None = None,
+    slurm_collect=None,
 ) -> tuple[int, Path, LaunchPlan]:
     apply_profile_defaults(parsed.options)
     quiet = agent_quiet(parsed.options, env)
@@ -126,6 +171,10 @@ def wrap_srun(
     out_root = resolve_output_dir(parsed.options, env)
     run_dir = out_root / make_run_id(pid=0)
     ensure_run_layout(run_dir)
+    tail_path = run_dir / "events" / "stderr.tail"
+    prev_tail = os.environ.get(AGENT_STDERR_TAIL)
+    os.environ[AGENT_STDERR_TAIL] = str(tail_path)
+    env[AGENT_STDERR_TAIL] = str(tail_path)
     src_dir = str(Path(__file__).resolve().parents[1])
     exe = sys.executable
     py_path = sidecar_pythonpath(src_dir, env)
@@ -150,7 +199,7 @@ def wrap_srun(
         "--output-dir",
         str(run_dir),
         "--skills",
-        ",".join(parsed.options.skills) or "proc-monitor",
+        ",".join(parsed.options.skills) or ",".join(DEFAULT_SKILLS),
         "--match",
         match,
         "--interval",
@@ -191,6 +240,10 @@ def wrap_srun(
             wrap_argv=[*py_mod, "exec-wrap"],
         )
     finally:
+        if prev_tail is None:
+            os.environ.pop(AGENT_STDERR_TAIL, None)
+        else:
+            os.environ[AGENT_STDERR_TAIL] = prev_tail
         for key, value in saved_os.items():
             if value is None:
                 os.environ.pop(key, None)
@@ -202,6 +255,16 @@ def wrap_srun(
             else:
                 os.environ["AGENT_QUIET"] = prev_quiet
     request_agent_stop(run_dir)
+    job_id = str(env.get("SLURM_JOB_ID") or os.environ.get("SLURM_JOB_ID") or "")
+    if slurm_collect is not None or (job_id and job_id != "0"):
+        from agent_sidecar.tools.slurm_tap import refresh_slurm_snapshot
+
+        try:
+            refresh_slurm_snapshot(run_dir, job_id or "0", collect=slurm_collect)
+        except Exception as exc:
+            errors_pre = collect_errors or {}
+            errors_pre["slurm_tap"] = str(exc)[:500]
+            collect_errors = errors_pre
     errors = collect_errors or {}
     errors = merge_event_errors(run_dir, errors)
     retry = retry_metadata(

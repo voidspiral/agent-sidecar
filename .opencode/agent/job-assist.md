@@ -73,7 +73,7 @@ in 简体中文 and propose a corrected `agent srun` line: compile to a shared p
 such as `/shared/agent-sidecar/examples/mpi_io_load` and pass that path after
 `--`.
 
-Load skills under `.opencode/skills/` (mpi-monitor timeseries, launch-fail).
+Load skills under `.opencode/skills/` (mpi-monitor timeseries, launch-fail, node-diag).
 
 ## Maintainer sync
 
@@ -91,4 +91,5 @@ Change **all** Chinese copies in the same edit:
 - `.cursor/rules/job-assist.zh.md`
 
 Do not place `*.zh.md` under `.opencode/agent/` (OpenCode would register
-another agent from the filename). Do not add root `AGENTS.md` / `agent.md`.
+another agent from the filename). Do not add root `AGENTS.md` / `agent.md` /
+`skills.md`.

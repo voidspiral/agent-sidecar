@@ -7,7 +7,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from agent_sidecar.classify import classify_mpi_text, classify_slurm_state
+from agent_sidecar.classify import (
+    classify_mpi_text,
+    classify_node_diag_text,
+    classify_slurm_state,
+)
 
 
 def make_run_id(*, now: datetime | None = None, pid: int = 0) -> str:
@@ -142,20 +146,19 @@ def anomalies_from_artifacts(run_dir: Path) -> list[dict[str, Any]]:
                         "evidence_path": rel,
                     }
                 )
-        lowered = text.lower()
-        if path.name.startswith("node-diag") and (
-            "killed process" in lowered or "oom_pids=[" in lowered and "oom_pids=[]" not in lowered
-        ):
-            key = ("node_local", rel)
-            if key not in seen:
-                seen.add(key)
-                out.append(
-                    {
-                        "reason_code": "node_local",
-                        "message": "node-local oom",
-                        "evidence_path": rel,
-                    }
-                )
+        if path.name.startswith("node-diag"):
+            node = classify_node_diag_text(text)
+            if node:
+                key = (node, rel)
+                if key not in seen:
+                    seen.add(key)
+                    out.append(
+                        {
+                            "reason_code": node,
+                            "message": "node-local oom",
+                            "evidence_path": rel,
+                        }
+                    )
     return out
 
 

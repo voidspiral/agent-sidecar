@@ -11,11 +11,18 @@ import sys
 import time
 from pathlib import Path
 
-from agent_sidecar.argv import AgentParseError, agent_quiet, apply_profile_defaults, parse_agent_argv
+from agent_sidecar.argv import (
+    DEFAULT_SKILLS,
+    AgentParseError,
+    agent_quiet,
+    apply_profile_defaults,
+    parse_agent_argv,
+)
 from agent_sidecar.report import format_run_report, write_run_report
 from agent_sidecar.run import (
     agent_stop_path,
     request_agent_stop,
+    run_user_command,
     sbatch_environ,
     submit_sbatch,
     wrap_srun,
@@ -100,10 +107,10 @@ def cmd_srun(
     def default_user(argv: list[str]) -> int:
         if verbose:
             _log("start user step: " + " ".join(argv))
-        return subprocess.call(argv)
+        return run_user_command(argv)
 
     if verbose:
-        _log(f"profile={parsed.options.profile} skills={parsed.options.skills or ('proc-monitor',)}")
+        _log(f"profile={parsed.options.profile} skills={parsed.options.skills or DEFAULT_SKILLS}")
         _log("passthrough=" + " ".join(parsed.passthrough))
     if quiet:
         _log("sidecar started")
@@ -140,7 +147,7 @@ def cmd_srun(
 
 
 def _plugins_for(skills: tuple[str, ...]) -> list:
-    names = skills or ("proc-monitor",)
+    names = skills or DEFAULT_SKILLS
     plugins = []
     for name in names:
         factory = PLUGIN_FACTORIES.get(name)
@@ -197,7 +204,7 @@ def cmd_supervisor(argv: list[str]) -> int:
     p.add_argument("--job-id", required=True)
     p.add_argument("--host", default=os.uname().nodename.split(".")[0])
     p.add_argument("--output-dir", required=True, type=Path)
-    p.add_argument("--skills", default="proc-monitor")
+    p.add_argument("--skills", default=",".join(DEFAULT_SKILLS))
     p.add_argument("--match", default="")
     p.add_argument("--interval", type=float, default=1.0)
     p.add_argument("--once", action="store_true", help="start plugins and exit (tests)")

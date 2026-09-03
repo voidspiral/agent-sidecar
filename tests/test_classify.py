@@ -9,7 +9,7 @@ sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "src"))
 
 import unittest
 
-from agent_sidecar.classify import classify_mpi_text, classify_slurm_state
+from agent_sidecar.classify import classify_mpi_text, classify_node_diag_text, classify_slurm_state
 
 
 class TestClassify(unittest.TestCase):
@@ -26,3 +26,8 @@ class TestClassify(unittest.TestCase):
         self.assertEqual(classify_mpi_text("PMIx abort: rank disconnected"), "mpi_abort")
         self.assertEqual(classify_mpi_text("assert (!closed)"), "mpi_abort")
         self.assertIsNone(classify_mpi_text("job finished ok"))
+
+    def test_node_diag_snapshot(self) -> None:
+        self.assertEqual(classify_node_diag_text("oom_pids=[9]\noom_kill=0\n"), "node_local")
+        self.assertEqual(classify_node_diag_text("oom_pids=[]\noom_kill=1\n"), "node_local")
+        self.assertIsNone(classify_node_diag_text("oom_pids=[]\noom_kill=0\nfs_hang_lines=0\n"))

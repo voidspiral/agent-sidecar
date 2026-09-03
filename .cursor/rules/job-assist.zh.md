@@ -62,7 +62,7 @@ Live 文件不得替换 wrap 时的 `reason_code`。
 `agent srun` 命令：编译到共享路径，例如
 `/shared/agent-sidecar/examples/mpi_io_load`，在 `--` 之后传入该路径。
 
-加载 `.opencode/skills/` 下的 skills（mpi-monitor 时序、launch-fail）。
+加载 `.opencode/skills/` 下的 skills（mpi-monitor 时序、launch-fail、node-diag）。
 
 ## 维护者同步
 
@@ -79,4 +79,4 @@ Live 文件不得替换 wrap 时的 `reason_code`。
 - `.cursor/rules/job-assist.zh.md`
 
 不要把 `*.zh.md` 放到 `.opencode/agent/` 下（OpenCode 会按文件名再注册一个
-agent）。不要在仓库根再放 `AGENTS.md` / `agent.md`。
+agent）。不要在仓库根再放 `AGENTS.md` / `agent.md` / `skills.md`。
