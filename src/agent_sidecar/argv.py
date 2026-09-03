@@ -24,6 +24,7 @@ KNOWN_AGENT_FLAGS = {
 BOOLEAN_AGENT_FLAGS = {"agent-node-llm", "agent-verbose", "agent-quiet"}
 
 PROFILES = frozenset({"tools-only", "node-assist", "job-assist"})
+DEFAULT_SKILLS = ("proc-monitor", "mpi-scan", "slurm-tap", "node-diag")
 
 
 class AgentParseError(Exception):
@@ -139,7 +140,7 @@ def validate_profile(profile: str) -> str:
 def apply_profile_defaults(options: AgentOptions) -> AgentOptions:
     options.profile = validate_profile(options.profile or "job-assist")
     if not options.skills:
-        options.skills = ("proc-monitor",)
+        options.skills = DEFAULT_SKILLS
     return options
 
 

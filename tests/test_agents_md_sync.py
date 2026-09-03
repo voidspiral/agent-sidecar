@@ -19,6 +19,7 @@ ROOT_FORBIDDEN = (
     ROOT / "agent.md",
     ROOT / "AGENTS.zh.md",
     ROOT / "agent.zh.md",
+    ROOT / "skills.md",
 )
 
 

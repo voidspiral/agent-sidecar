@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
-DEFAULT_TIMEOUT = 120.0
+DEFAULT_TIMEOUT = 300.0
 _POLL = 0.2
 
 Runner = Callable[[list[str], str, float, dict[str, str] | None], tuple[int, str, str]]

@@ -261,3 +261,66 @@ class TestWrapTelemetry(unittest.TestCase):
                 tty=False,
             )
             self.assertEqual(seen[seen.index("--match") + 1], "mpi_io_load")
+
+    def test_wrap_refreshes_slurm_step_timeout_after_user(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            parsed = parse_agent_argv(
+                ["srun", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
+            )
+
+            def collect(job_id: str) -> tuple[str, str]:
+                self.assertEqual(job_id, "52")
+                return (
+                    "JobId=52 JobState=RUNNING NodeList=cn[1-3] ExitCode=0:0\n",
+                    "JobID|State|ExitCode|MaxRSS\n52|RUNNING|0:0|\n52.0|TIMEOUT|1:0|\n",
+                )
+
+            code, run_dir, _plan = wrap_srun(
+                parsed,
+                env={"SLURM_JOB_ID": "52"},
+                run_sidecar=lambda _a: 0,
+                run_user=lambda _a: 1,
+                opencode_runner=noop_opencode,
+                live_watcher=NoWatch(),
+                tty=False,
+                slurm_collect=collect,
+            )
+            self.assertEqual(code, 1)
+            snap = json.loads((run_dir / "events" / "slurm.json").read_text(encoding="utf-8"))
+            self.assertEqual(snap["JobState"], "TIMEOUT")
+            doc = load_telemetry(run_dir)
+            self.assertIn("timeout", [a["reason_code"] for a in doc["anomalies"]])
+            self.assertEqual(doc["reason_code"], "timeout")
+
+    def test_wrap_captures_mpi_abort_from_user_stdio(self) -> None:
+        from agent_sidecar.run import run_user_command
+
+        with tempfile.TemporaryDirectory() as tmp:
+            parsed = parse_agent_argv(
+                ["srun", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
+            )
+
+            def run_user(_argv: list[str]) -> int:
+                return run_user_command(
+                    [
+                        sys.executable,
+                        "-c",
+                        "import sys; sys.stderr.write('rank 0 MPI_Abort\\n'); sys.exit(1)",
+                    ]
+                )
+
+            code, run_dir, _plan = wrap_srun(
+                parsed,
+                env={},
+                run_sidecar=lambda _a: 0,
+                run_user=run_user,
+                opencode_runner=noop_opencode,
+                live_watcher=NoWatch(),
+                tty=False,
+            )
+            self.assertEqual(code, 1)
+            tail = (run_dir / "events" / "stderr.tail").read_text(encoding="utf-8")
+            self.assertIn("MPI_Abort", tail)
+            doc = load_telemetry(run_dir)
+            self.assertIn("mpi_abort", [a["reason_code"] for a in doc["anomalies"]])
+            self.assertEqual(doc["reason_code"], "mpi_abort")

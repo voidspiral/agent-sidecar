@@ -30,7 +30,10 @@ class TestQuietReport(unittest.TestCase):
         parsed = parse_agent_argv(["srun", "-n", "1", "--", "true"])
         apply_profile_defaults(parsed.options)
         self.assertTrue(parsed.options.quiet)
-        self.assertEqual(parsed.options.skills, ("proc-monitor",))
+        self.assertEqual(
+            parsed.options.skills,
+            ("proc-monitor", "mpi-scan", "slurm-tap", "node-diag"),
+        )
         env = {}
         got = resolve_output_dir(parsed.options, env)
         if Path("/shared").is_dir():

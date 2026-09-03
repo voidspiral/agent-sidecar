@@ -58,6 +58,7 @@ class TestCli(unittest.TestCase):
             code = cmd_srun(parsed, run_sidecar=run_sidecar, run_user=run_user)
             self.assertEqual(code, 0)
             self.assertIn("--overlap", seen["sidecar"])
+            self.assertIn("proc-monitor,mpi-scan,slurm-tap,node-diag", seen["sidecar"])
             self.assertEqual(seen["user"][0], "srun")
             self.assertIn("true", seen["user"])
             self.assertNotIn("--agent-profile=tools-only", seen["user"])

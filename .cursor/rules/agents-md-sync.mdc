@@ -21,7 +21,7 @@ When you change the Chinese translation, update **all** in the same edit:
 - `.cursor/rules/job-assist.zh.md`
 
 Do not place `*.zh.md` under `.opencode/agent/` (OpenCode would register
-another agent from the filename). Do not add root `AGENTS.md` / `agent.md`.
+another agent from the filename). Do not add root `AGENTS.md` / `agent.md` / `skills.md`.
 `tests/test_agents_md_sync.py` must stay green.
 
 OpenSpec / Cursor command skills under `.cursor/` are **not** duplicated into

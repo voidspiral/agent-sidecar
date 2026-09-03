@@ -17,6 +17,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from agent_sidecar.opencode_assist import (
+    DEFAULT_TIMEOUT,
     OpenCodeError,
     build_assist_prompt,
     default_opencode_runner,
@@ -165,3 +166,6 @@ class TestOpenCodeAssist(unittest.TestCase):
                 run_job_assist(run_dir, opencode_runner=runner, user_exit=0)
             self.assertIn("--model", runner.argv)
             self.assertIn("anthropic/deepseek-v4-flash", runner.argv)
+
+    def test_default_timeout_covers_slow_job_assist(self) -> None:
+        self.assertGreaterEqual(DEFAULT_TIMEOUT, 300.0)

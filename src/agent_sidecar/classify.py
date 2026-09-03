@@ -56,3 +56,19 @@ def classify_mpi_file(path: str | None) -> list[str]:
         return []
     code = classify_mpi_text(p.read_text(encoding="utf-8", errors="replace"))
     return [code] if code else []
+
+
+def classify_node_diag_text(text: str) -> str | None:
+    """Return node_local when the snapshot shows a job-scoped OOM or fs hang."""
+    if not text:
+        return None
+    lowered = text.lower()
+    if "killed process" in lowered:
+        return "node_local"
+    if re.search(r"oom_pids=\[[^\]]+", text) and "oom_pids=[]" not in text:
+        return "node_local"
+    if re.search(r"(?m)^oom_kill=([1-9]\d*)\s*$", text):
+        return "node_local"
+    if re.search(r"(?m)^fs_hang_lines=([1-9]\d*)\s*$", text):
+        return "node_local"
+    return None
