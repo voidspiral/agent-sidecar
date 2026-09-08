@@ -31,7 +31,7 @@ mpicc -O2 -o /shared/agent-sidecar/examples/mpi_io_load \
 
 python3 -m agent_sidecar srun --agent-output-dir /shared/agent-runs \
   -n3 -- \
-  /shared/agent-sidecar/examples/mpi_io_load 60 /shared/mpi-io
+  /shared/agent-sidecar/examples/mpi_io_load 60 /shared/mpi-io 30
 ```
 
 Copy `suspected_reason` from `reason_code` (`execution_error`). `actions` stays

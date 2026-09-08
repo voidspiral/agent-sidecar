@@ -85,7 +85,9 @@ python3 -m agent_sidecar serve --run-dir /shared/agent-runs/<run_id>
 `--agent-no-live-plot` or `AGENT_LIVE_PLOT=0` skips the server. Bind failure is
 fail-soft (`collect_errors.live_plot`) and does not change the user exit code.
 
-A ~60s MPI + IO sample lives in `examples/mpi_io_load.c`. The test cluster
+An MPI sample lives in `examples/mpi_io_load.c`: ~60s NFS write/fsync/read
+per rank, then a 30s local CPU burn (`mpi_io_load [io_seconds] [work_dir]
+[cpu_seconds]`; pass `0` as the third argument to skip CPU). The test cluster
 exports NFS at `/shared` (`mn:/shared`). Place the tree, binary, IO scratch,
 and run output there so every node sees the same files:
 

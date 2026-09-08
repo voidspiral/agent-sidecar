@@ -87,7 +87,9 @@ live 超时默认 300s（`AGENT_OPENCODE_TIMEOUT`）。用户步骤结束时取�
 OpenCode；若已有 `assist/live.json` 摘要则提升为 `assist/job.json`。
 除非设置 `AGENT_OPENCODE_FINAL_TIMEOUT` 大于 0，作业结束后不再新拉一轮模型。
 
-约 60 秒、带 IO 的 MPI 示例见 `examples/mpi_io_load.c`。本集群 NFS 挂在
+MPI 示例见 `examples/mpi_io_load.c`：每 rank 先约 60 秒 NFS 写/fsync/读，
+再 30 秒本地 CPU burn（`mpi_io_load [io_seconds] [work_dir] [cpu_seconds]`；
+第三参数传 `0` 则跳过 CPU）。本集群 NFS 挂在
 `/shared`（`mn:/shared`）。源码、二进制、IO scratch 和 run 产物都放这里，
 各节点同一份文件：
 

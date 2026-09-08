@@ -1,11 +1,12 @@
 #!/bin/bash
-# Submit-host job-assist + ~60s MPI IO on NFS /shared. Run on mn.
+# Submit-host job-assist + MPI IO then CPU on NFS /shared. Run on mn.
 set -u
 SHARED="${AGENT_SHARED:-/shared}"
 ROOT="${1:-$SHARED/agent-sidecar}"
 OUT="${2:-$SHARED/agent-runs}"
 WORK="${AGENT_MPI_WORKDIR:-$SHARED/mpi-io}"
 SECONDS_IO="${AGENT_MPI_SECONDS:-60}"
+SECONDS_CPU="${AGENT_MPI_CPU_SECONDS:-30}"
 MPI_SRC="${AGENT_MPI_MONITOR_SRC:-$SHARED/mpi-monitor/src}"
 
 export PYTHONPATH="${ROOT}/src:${MPI_SRC}${PYTHONPATH:+:$PYTHONPATH}"
@@ -60,12 +61,12 @@ echo
 echo \"======== 2b. NFS visible on ranks ========\"
 srun -N3 -n3 -l bash -c 'hostname -s; df -h $SHARED; ls -l $BIN; test -x $BIN'
 echo
-echo \"======== 2c. agent srun job-assist + mpi_io_load ${SECONDS_IO}s on $WORK ========\"
+echo \"======== 2c. agent srun job-assist + mpi_io_load ${SECONDS_IO}s IO + ${SECONDS_CPU}s CPU on $WORK ========\"
 python3 -m agent_sidecar srun --agent-verbose \\
   --agent-skills=proc-monitor,slurm-tap,mpi-scan,node-diag \\
   --agent-output-dir '$OUT' \\
   -n3 -l -- \\
-  $BIN ${SECONDS_IO} $WORK
+  $BIN ${SECONDS_IO} $WORK ${SECONDS_CPU}
 echo
 echo \"======== 2d. salloc ending ========\"
 "
