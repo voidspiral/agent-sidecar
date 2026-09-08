@@ -15,7 +15,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_fakes import NoWatch, noop_opencode
+from agent_fakes import NoPlot, NoWatch, noop_opencode
 from agent_sidecar.argv import parse_agent_argv
 from agent_sidecar.cli import cmd_srun
 from agent_sidecar.report import format_run_report, write_run_report
@@ -194,6 +194,7 @@ class TestQuietReport(unittest.TestCase):
                     run_user=lambda _a: 0,
                     opencode_runner=noop_opencode,
                     live_watcher=NoWatch(),
+                    live_plotter=NoPlot(),
                     tty=False,
                 )
             self.assertEqual(code, 0)

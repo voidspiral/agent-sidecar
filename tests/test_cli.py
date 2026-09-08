@@ -21,7 +21,7 @@ from agent_sidecar.spi import reset_supervisors
 from agent_sidecar.telemetry import write_telemetry
 
 sys.path.insert(0, str(_Path(__file__).resolve().parent))
-from agent_fakes import NoWatch, noop_opencode
+from agent_fakes import NoPlot, NoWatch, noop_opencode
 
 
 class TestCli(unittest.TestCase):
@@ -55,7 +55,7 @@ class TestCli(unittest.TestCase):
                     "true",
                 ]
             )
-            code = cmd_srun(parsed, run_sidecar=run_sidecar, run_user=run_user)
+            code = cmd_srun(parsed, run_sidecar=run_sidecar, run_user=run_user, live_plotter=NoPlot())
             self.assertEqual(code, 0)
             self.assertIn("--overlap", seen["sidecar"])
             self.assertIn("proc-monitor,mpi-scan,slurm-tap,node-diag", seen["sidecar"])
@@ -85,6 +85,7 @@ class TestCli(unittest.TestCase):
                     run_user=lambda _a: 0,
                     opencode_runner=noop_opencode,
                     live_watcher=NoWatch(),
+                    live_plotter=NoPlot(),
                     tty=False,
                 )
             self.assertEqual(code, 0)
@@ -113,6 +114,7 @@ class TestCli(unittest.TestCase):
                     run_user=lambda _argv: 0,
                     opencode_runner=noop_opencode,
                     live_watcher=NoWatch(),
+                    live_plotter=NoPlot(),
                     tty=False,
                 )
             self.assertEqual(code, 0)
@@ -188,3 +190,7 @@ class TestCli(unittest.TestCase):
 
     def test_sbatch_requires_script(self) -> None:
         self.assertEqual(main(["sbatch"]), 2)
+
+    def test_serve_requires_run_dir(self) -> None:
+        with self.assertRaises(SystemExit):
+            main(["serve"])

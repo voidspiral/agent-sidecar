@@ -6,11 +6,13 @@ import sys
 from pathlib import Path as _Path
 
 sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(_Path(__file__).resolve().parent))
 
 import tempfile
 import unittest
 from pathlib import Path
 
+from agent_fakes import NoPlot
 from agent_sidecar.argv import parse_agent_argv
 from agent_sidecar.run import wrap_srun
 
@@ -35,6 +37,7 @@ class TestExitCode(unittest.TestCase):
                 collect_errors={"h1": "fetch timeout"},
                 opencode_runner=lambda *a, **k: (0, "ok", ""),
                 tty=False,
+                live_plotter=NoPlot(),
             )
             self.assertEqual(code, 7)
             meta = (run_dir / "meta.json").read_text(encoding="utf-8")

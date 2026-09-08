@@ -44,6 +44,7 @@ skips OpenCode.
 | `--agent-node-llm` | opt-in node model; recorded as unsupported |
 | `--agent-match` | override proc-monitor `--match` (default: user binary basename) |
 | `--agent-interval` | sample interval in seconds (default `1.0`) |
+| `--agent-live-plot` / `--agent-no-live-plot` | submit-host overlay HTTP (default on). `AGENT_LIVE_PLOT=0` opts out; `AGENT_LIVE_PLOT_PORT` sets the port (default `8765`) |
 
 Job-assist runs **on the submit host**: a live OpenCode watcher ticks on
 artifact snapshots while the user step runs, then one final `opencode run`
@@ -68,7 +69,18 @@ Optional: set `AGENT_OPENCODE_MODEL` (`provider/model`) to pin the model.
 Final job-assist timeout defaults to 300s (`AGENT_OPENCODE_TIMEOUT`).
 
 Set `AGENT_MPI_MONITOR_SRC` if mpi-monitor is not at `/shared/mpi-monitor/src`.
-Wrap writes optional PNG under `charts/` when matplotlib is installed.
+Wrap writes optional PNG under `charts/` when matplotlib is installed (one file
+per pid × metric). While the job runs, the submit host also serves a live
+overlay page (all processes of one metric on one chart, legend by rank or
+`host pid`). Quiet wrap prints `[agent] live plot: http://127.0.0.1:8765`.
+From a laptop: `ssh -L 8765:127.0.0.1:8765 mn`. Replay a finished run:
+
+```bash
+python3 -m agent_sidecar serve --run-dir /shared/agent-runs/<run_id>
+```
+
+`--agent-no-live-plot` or `AGENT_LIVE_PLOT=0` skips the server. Bind failure is
+fail-soft (`collect_errors.live_plot`) and does not change the user exit code.
 
 A ~60s MPI + IO sample lives in `examples/mpi_io_load.c`. The test cluster
 exports NFS at `/shared` (`mn:/shared`). Place the tree, binary, IO scratch,

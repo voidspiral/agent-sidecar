@@ -82,6 +82,20 @@ class TestArgv(unittest.TestCase):
         self.assertEqual(parsed.options.profile, "job-assist")
         self.assertEqual(parsed.passthrough, ["-n", "1", "hostname"])
 
+    def test_live_plot_flags(self) -> None:
+        from agent_sidecar.argv import agent_live_plot
+
+        on = parse_agent_argv(["srun", "--agent-live-plot", "-n", "1", "--", "true"])
+        self.assertTrue(on.options.live_plot_cli)
+        self.assertTrue(agent_live_plot(on.options, env={"AGENT_LIVE_PLOT": "0"}))
+        off = parse_agent_argv(["srun", "--agent-no-live-plot", "-n", "1", "--", "true"])
+        self.assertFalse(off.options.live_plot_cli)
+        self.assertFalse(agent_live_plot(off.options, env={}))
+        default = parse_agent_argv(["srun", "-n", "1", "--", "true"])
+        self.assertIsNone(default.options.live_plot_cli)
+        self.assertTrue(agent_live_plot(default.options, env={}))
+        self.assertFalse(agent_live_plot(default.options, env={"AGENT_LIVE_PLOT": "0"}))
+
     def test_agent_match_flag(self) -> None:
         parsed = parse_agent_argv(
             [

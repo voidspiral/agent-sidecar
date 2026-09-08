@@ -15,7 +15,7 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-from agent_fakes import RecWatch
+from agent_fakes import NoPlot, RecWatch
 from agent_sidecar.argv import parse_agent_argv
 from agent_sidecar.cli import main
 from agent_sidecar.live_opencode import ATTACH_HINT
@@ -73,6 +73,7 @@ class TestJobAssistProfile(unittest.TestCase):
                     run_sidecar=run_sidecar,
                     run_user=lambda _a: 0,
                     opencode_runner=runner,
+                    live_plotter=NoPlot(),
                 )
                 chat.assert_not_called()
             self.assertEqual(code, 0)
@@ -102,6 +103,7 @@ class TestJobAssistProfile(unittest.TestCase):
                 run_sidecar=lambda _a: 0,
                 run_user=lambda _a: 0,
                 opencode_runner=runner,
+                live_plotter=NoPlot(),
             )
             self.assertEqual(len(runner.calls), 0)
 
@@ -123,6 +125,7 @@ class TestJobAssistProfile(unittest.TestCase):
                 run_sidecar=run_sidecar,
                 run_user=lambda _a: 0,
                 opencode_runner=runner,
+                live_plotter=NoPlot(),
             )
             self.assertEqual(code, 0)
             self.assertEqual(parsed.options.profile, "job-assist")
@@ -155,6 +158,7 @@ class TestJobAssistProfile(unittest.TestCase):
                 run_sidecar=run_sidecar,
                 run_user=run_user,
                 opencode_runner=runner,
+                live_plotter=NoPlot(),
                 live_watcher=watch,
                 tty=False,
             )
@@ -181,6 +185,7 @@ class TestJobAssistProfile(unittest.TestCase):
                     run_sidecar=lambda _a: 0,
                     run_user=run_user,
                     opencode_runner=runner,
+                    live_plotter=NoPlot(),
                     live_watcher=watch,
                     tty=True,
                 )
@@ -216,6 +221,7 @@ class TestJobAssistProfile(unittest.TestCase):
                 run_sidecar=run_sidecar,
                 run_user=lambda _a: 0,
                 opencode_runner=runner,
+                live_plotter=NoPlot(),
             )
             self.assertEqual(len(runner.calls), 0)
             joined = " ".join(sidecar)
@@ -260,6 +266,7 @@ class TestJobAssistProfile(unittest.TestCase):
                 run_sidecar=run_sidecar,
                 run_user=lambda _a: 0,
                 opencode_runner=runner,
+                live_plotter=NoPlot(),
             )
             doc = load_telemetry(run_dir)
             self.assertEqual(doc["reason_code"], "mpi_abort")
@@ -318,6 +325,7 @@ class TestJobAssistProfile(unittest.TestCase):
                 run_sidecar=run_sidecar,
                 run_user=lambda _a: 0,
                 opencode_runner=tracking_runner,
+                live_plotter=NoPlot(),
                 live_watcher=LiveWrite(),
                 tty=False,
             )

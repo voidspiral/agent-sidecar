@@ -13,7 +13,10 @@ This skill describes **agent-sidecar** collection, not a gateway wrap CLI.
 
 The overlap supervisor on each compute node runs `proc-monitor`, which calls
 `mpi_monitor.collect.collect_loop` until SIGTERM. JSONL lands under the wrap
-run directory. After wrap, the login host may write optional PNG charts.
+run directory. After wrap, the login host may write optional PNG charts
+(one file per pid × metric). Humans may watch a live overlay UI on the
+submit host (`agent serve` / wrap `live plot` URL) that stacks every process
+of one metric on a single chart. That UI is not for the model.
 
 Do **not** run `mpi-monitor wrap`. Do **not** SSH a collector. Matching is
 `--match` (user binary basename, or `--agent-match`).
@@ -68,4 +71,5 @@ Sidecar processes need both trees:
 - Inventing ranks or samples that are not in summary/series paths
 - Sending PNG bytes to the model
 - `scancel` / `scontrol`
-- Overlaying multiple PIDs in one imagined chart (on-disk charts are per pid × metric)
+- Overlaying multiple PIDs in one **imagined** chart for the model (on-disk
+  charts are per pid × metric). The submit-host live UI may overlay by metric.

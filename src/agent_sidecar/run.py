@@ -14,6 +14,7 @@ from agent_sidecar.argv import (
     DEFAULT_SKILLS,
     AgentOptions,
     ParsedArgv,
+    agent_live_plot,
     agent_quiet,
     apply_profile_defaults,
 )
@@ -156,6 +157,7 @@ def wrap_srun(
     plotter=None,
     opencode_runner=None,
     live_watcher=None,
+    live_plotter=None,
     tty: bool | None = None,
     slurm_collect=None,
 ) -> tuple[int, Path, LaunchPlan]:
@@ -215,10 +217,33 @@ def wrap_srun(
     if assist and watcher is None:
         watcher = LiveWatcher(opencode_runner=opencode_runner, env=assist_env)
     use_tty = sys.stdin.isatty() and sys.stdout.isatty() if tty is None else tty
+    plot_err: dict[str, str] = {}
+    plot_srv = live_plotter
 
     def run_user_with_live(argv: list[str]) -> int:
+        nonlocal plot_srv
         if "opencode" in argv or any("opencode" in t for t in argv):
             raise RuntimeError("OpenCode must not appear in the user srun argv")
+        started_plot = False
+        if agent_live_plot(parsed.options, env):
+            if plot_srv is None:
+                from agent_sidecar.live_plot_http import DEFAULT_HOST, DEFAULT_PORT, LivePlotServer
+
+                raw_port = env.get("AGENT_LIVE_PLOT_PORT") or str(DEFAULT_PORT)
+                try:
+                    port = int(raw_port)
+                except ValueError:
+                    port = DEFAULT_PORT
+                host = env.get("AGENT_LIVE_PLOT_HOST") or DEFAULT_HOST
+                plot_srv = LivePlotServer(host=host, port=port)
+            try:
+                url = plot_srv.start(run_dir)
+                started_plot = True
+                if url:
+                    print(f"[agent] live plot: {url}", file=sys.stderr, flush=True)
+            except OSError as exc:
+                plot_err["live_plot"] = str(exc)[:500]
+                plot_srv = None
         if watcher is not None:
             watcher.start(run_dir)
             if use_tty and not quiet:
@@ -228,6 +253,8 @@ def wrap_srun(
         finally:
             if watcher is not None:
                 watcher.stop()
+            if started_plot and plot_srv is not None:
+                plot_srv.stop()
 
     try:
         plan = plan_overlap(parsed.passthrough, supervisor)
@@ -267,6 +294,7 @@ def wrap_srun(
             collect_errors = errors_pre
     errors = collect_errors or {}
     errors = merge_event_errors(run_dir, errors)
+    errors.update(plot_err)
     retry = retry_metadata(
         user_exit=None if (not overlap_ok and used.fallback_used and code == 0) else code,
         overlap_failed_before_start=used.fallback_used and not overlap_ok,

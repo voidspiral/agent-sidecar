@@ -18,3 +18,6 @@ agent = "agent_sidecar.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+agent_sidecar = ["static/*"]

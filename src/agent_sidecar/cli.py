@@ -1,4 +1,4 @@
-"""agent CLI: srun / sbatch / salloc / supervisor / report."""
+"""agent CLI: srun / sbatch / salloc / supervisor / report / serve."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ from agent_sidecar.tools.node_diag import NodeDiag
 from agent_sidecar.tools.proc_monitor import ProcMonitor
 from agent_sidecar.tools.slurm_tap import SlurmTap
 
-USAGE = "usage: agent srun|sbatch|salloc|supervisor|report ..."
+USAGE = "usage: agent srun|sbatch|salloc|supervisor|report|serve ..."
 
 PLUGIN_FACTORIES = {
     "proc-monitor": ProcMonitor,
@@ -75,6 +75,7 @@ def cmd_srun(
     overlap_ok: bool = True,
     opencode_runner=None,
     live_watcher=None,
+    live_plotter=None,
     tty: bool | None = None,
 ) -> int:
     verbose = parsed.options.verbose or os.environ.get("AGENT_VERBOSE") == "1"
@@ -124,6 +125,7 @@ def cmd_srun(
         overlap_ok=overlap_ok,
         opencode_runner=opencode_runner,
         live_watcher=live_watcher,
+        live_plotter=live_plotter,
         tty=tty,
     )
     proc = holder.get("proc")
@@ -258,6 +260,31 @@ def cmd_report(argv: list[str]) -> int:
     return 0
 
 
+def cmd_serve(argv: list[str]) -> int:
+    from agent_sidecar.live_plot_http import DEFAULT_HOST, DEFAULT_PORT, LivePlotServer
+
+    p = argparse.ArgumentParser(prog="agent serve")
+    p.add_argument("--run-dir", required=True, type=Path)
+    p.add_argument("--host", default=os.environ.get("AGENT_LIVE_PLOT_HOST") or DEFAULT_HOST)
+    raw_port = os.environ.get("AGENT_LIVE_PLOT_PORT") or str(DEFAULT_PORT)
+    try:
+        default_port = int(raw_port)
+    except ValueError:
+        default_port = DEFAULT_PORT
+    p.add_argument("--port", type=int, default=default_port)
+    ns = p.parse_args(argv)
+    server = LivePlotServer(host=ns.host, port=ns.port)
+    url = server.start(ns.run_dir)
+    print(f"[agent] live plot: {url}", flush=True)
+    try:
+        server.wait()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.stop()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv:
@@ -272,6 +299,8 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_supervisor(argv[1:])
         if cmd == "report":
             return cmd_report(argv[1:])
+        if cmd == "serve":
+            return cmd_serve(argv[1:])
         parsed = parse_agent_argv(argv)
         apply_profile_defaults(parsed.options)
         if parsed.options.node_llm:

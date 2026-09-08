@@ -19,9 +19,17 @@ KNOWN_AGENT_FLAGS = {
     "agent-llm-model",
     "agent-match",
     "agent-interval",
+    "agent-live-plot",
+    "agent-no-live-plot",
 }
 
-BOOLEAN_AGENT_FLAGS = {"agent-node-llm", "agent-verbose", "agent-quiet"}
+BOOLEAN_AGENT_FLAGS = {
+    "agent-node-llm",
+    "agent-verbose",
+    "agent-quiet",
+    "agent-live-plot",
+    "agent-no-live-plot",
+}
 
 PROFILES = frozenset({"tools-only", "node-assist", "job-assist"})
 DEFAULT_SKILLS = ("proc-monitor", "mpi-scan", "slurm-tap", "node-diag")
@@ -47,6 +55,7 @@ class AgentOptions:
     llm_model: str | None = None
     match: str | None = None
     interval: float = 1.0
+    live_plot_cli: bool | None = None
 
 
 @dataclass
@@ -66,7 +75,7 @@ def _flag_name(token: str) -> str | None:
 
 def parse_agent_argv(argv: Sequence[str]) -> ParsedArgv:
     if not argv:
-        raise AgentParseError("usage: agent srun|sbatch|salloc|supervisor|report ...")
+        raise AgentParseError("usage: agent srun|sbatch|salloc|supervisor|report|serve ...")
     command = argv[0]
     options = AgentOptions()
     passthrough: list[str] = []
@@ -127,6 +136,10 @@ def _assign(options: AgentOptions, name: str, value: str, *, present: bool) -> N
             options.interval = float(value)
         except ValueError as exc:
             raise AgentParseError(f"invalid --agent-interval={value}") from exc
+    elif name == "agent-live-plot":
+        options.live_plot_cli = True
+    elif name == "agent-no-live-plot":
+        options.live_plot_cli = False
 
 
 def validate_profile(profile: str) -> str:
@@ -151,5 +164,16 @@ def agent_quiet(options: AgentOptions | None = None, env: dict[str, str] | None 
     if (env.get("AGENT_VERBOSE") or "").strip() == "1":
         return False
     if (env.get("AGENT_QUIET") or "").strip() == "0":
+        return False
+    return True
+
+
+def agent_live_plot(options: AgentOptions | None = None, env: dict[str, str] | None = None) -> bool:
+    env = env if env is not None else os.environ
+    if options is not None and options.live_plot_cli is True:
+        return True
+    if options is not None and options.live_plot_cli is False:
+        return False
+    if (env.get("AGENT_LIVE_PLOT") or "").strip() == "0":
         return False
     return True

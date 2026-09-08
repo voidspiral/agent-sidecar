@@ -13,7 +13,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_fakes import NoWatch, noop_opencode
+from agent_fakes import NoPlot, NoWatch, noop_opencode
 from agent_sidecar.argv import parse_agent_argv
 from agent_sidecar.run import wrap_srun
 from agent_sidecar.telemetry import load_telemetry
@@ -35,7 +35,7 @@ def _wrap(tmp: str, *, populate):
         run_sidecar=run_sidecar,
         run_user=lambda _argv: 0,
         opencode_runner=noop_opencode,
-        live_watcher=NoWatch(),
+        live_watcher=NoWatch(), live_plotter=NoPlot(),
         tty=False,
     )
     return code, run_dir
@@ -174,7 +174,7 @@ class TestWrapTelemetry(unittest.TestCase):
                 run_user=lambda _a: 0,
                 plotter=plotter,
                 opencode_runner=noop_opencode,
-                live_watcher=NoWatch(),
+                live_watcher=NoWatch(), live_plotter=NoPlot(),
                 tty=False,
             )
             self.assertEqual(code, 0)
@@ -223,7 +223,7 @@ class TestWrapTelemetry(unittest.TestCase):
                 run_sidecar=run_sidecar,
                 run_user=lambda _a: 0,
                 opencode_runner=noop_opencode,
-                live_watcher=NoWatch(),
+                live_watcher=NoWatch(), live_plotter=NoPlot(),
                 tty=False,
             )
             self.assertIn("--match", seen)
@@ -257,7 +257,7 @@ class TestWrapTelemetry(unittest.TestCase):
                 run_sidecar=run_sidecar,
                 run_user=lambda _a: 0,
                 opencode_runner=noop_opencode,
-                live_watcher=NoWatch(),
+                live_watcher=NoWatch(), live_plotter=NoPlot(),
                 tty=False,
             )
             self.assertEqual(seen[seen.index("--match") + 1], "mpi_io_load")
@@ -281,7 +281,7 @@ class TestWrapTelemetry(unittest.TestCase):
                 run_sidecar=lambda _a: 0,
                 run_user=lambda _a: 1,
                 opencode_runner=noop_opencode,
-                live_watcher=NoWatch(),
+                live_watcher=NoWatch(), live_plotter=NoPlot(),
                 tty=False,
                 slurm_collect=collect,
             )
@@ -315,7 +315,7 @@ class TestWrapTelemetry(unittest.TestCase):
                 run_sidecar=lambda _a: 0,
                 run_user=run_user,
                 opencode_runner=noop_opencode,
-                live_watcher=NoWatch(),
+                live_watcher=NoWatch(), live_plotter=NoPlot(),
                 tty=False,
             )
             self.assertEqual(code, 1)

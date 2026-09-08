@@ -50,6 +50,7 @@ agent srun --agent-output-dir ./runs -N 2 -n 4 -- ./app
 | `--agent-node-llm` | 可选节点模型；记录为不支持 |
 | `--agent-match` | 覆盖 proc-monitor 的 `--match`（默认用用户二进制基名） |
 | `--agent-interval` | 采样间隔秒（默认 `1.0`） |
+| `--agent-live-plot` / `--agent-no-live-plot` | 提交端叠线 HTTP（默认开）。`AGENT_LIVE_PLOT=0` 关闭；`AGENT_LIVE_PLOT_PORT` 改端口（默认 `8765`） |
 
 `job-assist`（默认）在提交端跑 live OpenCode（作业期间看 `series/`/`events/`
 快照），并在写出 `telemetry.json` 后再出一份最终笔记
@@ -69,7 +70,18 @@ python3 -m agent_sidecar srun -N 2 -n 4 -- ./app
 `reason_code`。
 
 mpi-monitor 源码默认 `/shared/mpi-monitor/src`，可用 `AGENT_MPI_MONITOR_SRC`
-覆盖。有 matplotlib 时 wrap 会在 `charts/` 写出 PNG。
+覆盖。有 matplotlib 时 wrap 会在 `charts/` 写出 **每个 pid × 指标** 一张 PNG。
+作业运行期间，提交端还会起 live overlay 页（同一指标下所有进程叠在一张图，
+图例用 rank 或 `host pid`）。quiet 会打印
+`[agent] live plot: http://127.0.0.1:8765`。笔记本访问：
+`ssh -L 8765:127.0.0.1:8765 mn`。结束后回放：
+
+```bash
+python3 -m agent_sidecar serve --run-dir /shared/agent-runs/<run_id>
+```
+
+`--agent-no-live-plot` 或 `AGENT_LIVE_PLOT=0` 关闭。端口占用只记
+`collect_errors.live_plot`，不改用户退出码。
 
 可选：设 `AGENT_OPENCODE_MODEL`（`provider/model`）固定模型。最终 job-assist
 默认超时 300s（`AGENT_OPENCODE_TIMEOUT`）。
