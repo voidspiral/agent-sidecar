@@ -57,6 +57,26 @@ The telemetry consumer SHALL be the submitting CLI report, an in-allocation job-
 - **WHEN** tools-only completes
 - **THEN** the CLI writes `JobTelemetry` and a human-readable report derived from it without calling an external workflow runner
 
+### Requirement: Human-readable report is compact
+The submitting CLI human-readable report (`report.txt` and quiet stdout) SHALL
+lead with run path, exit code, `reason_code`, host count, and pid count; then
+the job-assist numbered summary when `assist/job.json` exists; then a compact
+metrics line; then hosts grouped from `series/{host}_pid{pid}.jsonl` filenames;
+then collect errors only when non-empty; then evidence as directory counts.
+The report MUST NOT list every PNG path under `charts/`.
+
+#### Scenario: Job-assist precedes evidence
+- **WHEN** `assist/job.json` contains a summary
+- **THEN** that summary appears before the evidence line
+
+#### Scenario: Charts collapsed to a count
+- **WHEN** `charts/` contains multiple PNG files
+- **THEN** the report includes a `charts/` count and does not list each PNG path
+
+#### Scenario: Empty collect_errors omitted
+- **WHEN** telemetry has no collect errors
+- **THEN** the report does not print an empty collect_errors object
+
 ### Requirement: Wrap-time telemetry is complete before assist
 After sidecars stop and before any job-assist model call, the launch host SHALL
 write `JobTelemetry` whose `summary` includes peak and average CPU, peak RSS,

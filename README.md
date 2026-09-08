@@ -40,7 +40,7 @@ skips OpenCode.
 | `--agent-skills` | comma-separated tools loaded by the node sidecar |
 | `--agent-output-dir` | run directory parent (or set `AGENT_JOB_DIR`) |
 | `--agent-verbose` | print overlap sidecar / user-step launch trace and raw telemetry |
-| `--agent-quiet` | key steps only, then a final `report.txt` (summary + artifacts). Also `AGENT_QUIET=1` |
+| `--agent-quiet` | key steps only, then a compact `report.txt` (header, job-assist, metrics, hosts, evidence counts). Also `AGENT_QUIET=1` |
 | `--agent-node-llm` | opt-in node model; recorded as unsupported |
 | `--agent-match` | override proc-monitor `--match` (default: user binary basename) |
 | `--agent-interval` | sample interval in seconds (default `1.0`) |

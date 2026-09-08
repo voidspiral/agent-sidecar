@@ -46,41 +46,130 @@ class TestQuietReport(unittest.TestCase):
         self.assertTrue(parsed.options.quiet)
         self.assertEqual(parsed.passthrough, ["-n", "1", "--", "true"])
 
+    def _seed_run(
+        self,
+        run_dir: Path,
+        *,
+        series: tuple[str, ...] = ("cn1_pid1.jsonl",),
+        charts: tuple[str, ...] = ("cn1_pid1_cpu_pct.png",),
+        assist_summary: str | None = "作业成功",
+        events: tuple[str, ...] = (),
+        summary: dict | None = None,
+        reason_code: str = "ok",
+        extra: dict | None = None,
+    ) -> None:
+        ensure_run_layout(run_dir)
+        for name in series:
+            (run_dir / "series" / name).write_text("{}\n", encoding="utf-8")
+        for name in charts:
+            (run_dir / "charts" / name).write_bytes(b"x")
+        for name in events:
+            (run_dir / "events" / name).write_text("e\n", encoding="utf-8")
+        if assist_summary is not None:
+            (run_dir / "assist" / "job.json").write_text(
+                json.dumps({"summary": assist_summary, "actions": []}) + "\n",
+                encoding="utf-8",
+            )
+        write_telemetry(
+            run_dir,
+            summary=summary
+            or {
+                "host_count": 2,
+                "pid_count": 2,
+                "cpu_avg": 8.7,
+                "cpu_peak": 92,
+                "rss_peak_mb": 412,
+                "io_read_bps_sum": 100,
+                "io_write_bps_sum": 200,
+                "exit_code": 0,
+            },
+            anomalies=[],
+            evidence_paths=["series/cn1_pid1.jsonl"],
+            reason_code=reason_code,
+            retry_allowed=False,
+            attempt=1,
+            extra=extra,
+        )
+
     def test_format_run_report_includes_summary_and_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)
-            ensure_run_layout(run_dir)
-            (run_dir / "series" / "cn1_pid1.jsonl").write_text("{}\n", encoding="utf-8")
-            (run_dir / "charts" / "cn1_pid1_cpu_pct.png").write_bytes(b"x")
-            (run_dir / "assist" / "job.json").write_text(
-                json.dumps({"summary": "作业成功", "actions": []}) + "\n",
-                encoding="utf-8",
-            )
-            write_telemetry(
-                run_dir,
-                summary={
-                    "host_count": 2,
-                    "pid_count": 2,
-                    "cpu_avg": 8.7,
-                    "exit_code": 0,
-                },
-                anomalies=[],
-                evidence_paths=["series/cn1_pid1.jsonl"],
-                reason_code="ok",
-                retry_allowed=False,
-                attempt=1,
-            )
+            self._seed_run(run_dir)
             text = format_run_report(run_dir)
             self.assertIn("======== agent report ========", text)
-            self.assertIn("reason_code: ok", text)
-            self.assertIn("host_count: 2", text)
-            self.assertIn("pid_count: 2", text)
-            self.assertIn("series/cn1_pid1.jsonl", text)
-            self.assertIn("charts/cn1_pid1_cpu_pct.png", text)
+            self.assertIn(f"run:    {run_dir}", text)
+            self.assertIn("exit:   0    reason: ok    hosts: 2    pids: 2", text)
             self.assertIn("作业成功", text)
+            self.assertLess(text.index("作业成功"), text.index("evidence"))
+            self.assertIn("metrics  cpu avg/peak 8.7/92  rss_peak_mb 412  io_r/w 100/200", text)
+            self.assertIn("  cn1  pid 1", text)
+            self.assertIn("evidence  series/×1  charts/×1", text)
+            self.assertIn("assist/job.json", text)
+            self.assertNotIn("charts/cn1_pid1_cpu_pct.png", text)
+            self.assertNotIn("collect_errors", text)
+            self.assertNotIn("host_count:", text)
             path = write_run_report(run_dir)
             self.assertEqual(path, run_dir / "report.txt")
             self.assertTrue(path.is_file())
+
+    def test_format_run_report_omits_empty_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            self._seed_run(run_dir, assist_summary=None)
+            text = format_run_report(run_dir)
+            self.assertNotIn("collect_errors", text)
+            self.assertNotIn("\nerrors\n", text)
+
+    def test_format_run_report_lists_collect_errors_when_present(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            self._seed_run(
+                run_dir,
+                extra={"collect_errors": {"opencode_missing": "no binary"}},
+            )
+            text = format_run_report(run_dir)
+            self.assertIn("errors", text)
+            self.assertIn("opencode_missing: no binary", text)
+
+    def test_format_run_report_collapses_charts_and_groups_hosts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            self._seed_run(
+                run_dir,
+                series=("cn2_pid9.jsonl", "cn1_pid2.jsonl", "cn1_pid1.jsonl"),
+                charts=(
+                    "cn1_pid1_cpu_pct.png",
+                    "cn1_pid1_rss_mb.png",
+                    "cn1_pid2_cpu_pct.png",
+                    "cn2_pid9_cpu_pct.png",
+                ),
+                events=("stderr.tail",),
+                summary={
+                    "host_count": 2,
+                    "pid_count": 3,
+                    "exit_code": 0,
+                },
+            )
+            text = format_run_report(run_dir)
+            self.assertIn("hosts: 2    pids: 3", text)
+            self.assertIn("  cn1  pid 1, 2", text)
+            self.assertIn("  cn2  pid 9", text)
+            self.assertIn("charts/×4", text)
+            self.assertIn("series/×3", text)
+            self.assertIn("events/stderr.tail", text)
+            self.assertNotIn(".png", text)
+            self.assertLess(text.index("  cn1  pid 1, 2"), text.index("  cn2  pid 9"))
+
+    def test_format_run_report_puts_job_assist_before_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            self._seed_run(
+                run_dir,
+                assist_summary="1. 结论：成功\n2. 采集：hosts=2",
+            )
+            text = format_run_report(run_dir)
+            self.assertLess(text.index("1. 结论：成功"), text.index("metrics"))
+            self.assertLess(text.index("1. 结论：成功"), text.index("evidence"))
 
     def test_quiet_srun_prints_key_steps_and_report_not_verbose_dump(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -113,7 +202,8 @@ class TestQuietReport(unittest.TestCase):
             self.assertIn("[agent] user step started", text)
             self.assertIn("[agent] user exit=0", text)
             self.assertIn("======== agent report ========", text)
-            self.assertIn("reason_code:", text)
+            self.assertIn("reason:", text)
+            self.assertNotIn("metrics", text)
             self.assertNotIn("passthrough=", text)
             self.assertNotIn("[agent] telemetry.json:", text)
             self.assertNotIn("start sidecar step:", text)

@@ -46,7 +46,7 @@ agent srun --agent-output-dir ./runs -N 2 -n 4 -- ./app
 | `--agent-skills` | 节点 sidecar 加载的工具，逗号分隔 |
 | `--agent-output-dir` | run 目录的父路径（或设 `AGENT_JOB_DIR`） |
 | `--agent-verbose` | 打印 overlap sidecar / 用户 step 的启动过程 |
-| `--agent-quiet` | 只打关键步骤，结束时汇总 summary 和产物为 `report.txt`（也可用 `AGENT_QUIET=1`） |
+| `--agent-quiet` | 只打关键步骤，结束时写出紧凑 `report.txt`（header、job-assist、metrics、hosts、证据计数；也可用 `AGENT_QUIET=1`） |
 | `--agent-node-llm` | 可选节点模型；记录为不支持 |
 | `--agent-match` | 覆盖 proc-monitor 的 `--match`（默认用用户二进制基名） |
 | `--agent-interval` | 采样间隔秒（默认 `1.0`） |
