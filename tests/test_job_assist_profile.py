@@ -1,4 +1,4 @@
-"""job-assist profile: one submit-host OpenCode spawn after telemetry."""
+"""job-assist profile: wrap ends OpenCode with the user step."""
 
 from __future__ import annotations
 
@@ -41,6 +41,36 @@ def _ok(text: str = "ok interpretation"):
 
 
 class TestJobAssistProfile(unittest.TestCase):
+    def test_wrap_final_opencode_when_timeout_set(self) -> None:
+        runner = _ok("rank imbalance likely")
+        with tempfile.TemporaryDirectory() as tmp:
+            parsed = parse_agent_argv(
+                [
+                    "srun",
+                    "--agent-profile=job-assist",
+                    "--agent-output-dir",
+                    tmp,
+                    "-n",
+                    "1",
+                    "--",
+                    "true",
+                ]
+            )
+            code, run_dir, _plan = wrap_srun(
+                parsed,
+                env={**SECRET_ENV, "AGENT_OPENCODE_FINAL_TIMEOUT": "20"},
+                run_sidecar=lambda _a: 0,
+                run_user=lambda _a: 0,
+                opencode_runner=runner,
+                live_plotter=NoPlot(),
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(len(runner.calls), 1)
+            self.assertEqual(runner.calls[0]["timeout"], 20.0)
+            self.assertTrue((run_dir / "assist" / "job.json").is_file())
+            self.assertEqual(runner.calls[0]["argv"][:3], ["opencode", "run", "--dir"])
+            self.assertIn("--auto", runner.calls[0]["argv"])
+
     def test_job_assist_one_call_after_telemetry(self) -> None:
         runner = _ok("rank imbalance likely")
         with tempfile.TemporaryDirectory() as tmp:
@@ -77,10 +107,9 @@ class TestJobAssistProfile(unittest.TestCase):
                 )
                 chat.assert_not_called()
             self.assertEqual(code, 0)
-            self.assertGreaterEqual(len(runner.calls), 1)
+            self.assertEqual(len(runner.calls), 0)
             self.assertTrue((run_dir / "telemetry.json").is_file())
-            self.assertEqual(runner.calls[-1]["argv"][:3], ["opencode", "run", "--dir"])
-            self.assertIn("--auto", runner.calls[-1]["argv"])
+            self.assertFalse((run_dir / "assist" / "job.json").is_file())
 
     def test_tools_only_zero_calls(self) -> None:
         runner = _ok()
@@ -131,7 +160,7 @@ class TestJobAssistProfile(unittest.TestCase):
             self.assertEqual(parsed.options.profile, "job-assist")
             self.assertTrue(seen)
             self.assertIn("--overlap", seen[0])
-            self.assertGreaterEqual(len(runner.calls), 1)
+            self.assertEqual(len(runner.calls), 0)
             self.assertTrue((run_dir / "telemetry.json").is_file())
 
     def test_non_tty_starts_watcher_before_user(self) -> None:
@@ -262,7 +291,7 @@ class TestJobAssistProfile(unittest.TestCase):
 
             _code, run_dir, _plan = wrap_srun(
                 parsed,
-                env=dict(SECRET_ENV),
+                env={**SECRET_ENV, "AGENT_OPENCODE_FINAL_TIMEOUT": "300"},
                 run_sidecar=run_sidecar,
                 run_user=lambda _a: 0,
                 opencode_runner=runner,
@@ -276,6 +305,7 @@ class TestJobAssistProfile(unittest.TestCase):
             note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
             self.assertEqual(note["suspected_reason"], "mpi_abort")
             self.assertEqual(note["actions"], [])
+            self.assertGreaterEqual(len(runner.calls), 1)
 
     def test_live_file_does_not_overwrite_reason_final_after_telemetry(self) -> None:
         tel_seen: list[bool] = []
@@ -333,6 +363,8 @@ class TestJobAssistProfile(unittest.TestCase):
             self.assertEqual(doc["reason_code"], "mpi_abort")
             live = json.loads((run_dir / "assist" / "live.json").read_text(encoding="utf-8"))
             self.assertEqual(live["suspected_reason"], "timeout")
-            self.assertTrue(tel_seen)
-            self.assertTrue(tel_seen[-1])
-            self.assertTrue((run_dir / "assist" / "job.json").is_file())
+            self.assertFalse(tel_seen)
+            note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
+            self.assertEqual(note["suspected_reason"], "mpi_abort")
+            self.assertIn("live guessed timeout", note["summary"])
+            self.assertTrue(doc.get("job_assist"))

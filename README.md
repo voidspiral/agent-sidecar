@@ -46,9 +46,9 @@ skips OpenCode.
 | `--agent-interval` | sample interval in seconds (default `1.0`) |
 | `--agent-live-plot` / `--agent-no-live-plot` | submit-host overlay HTTP (default on). `AGENT_LIVE_PLOT=0` opts out; `AGENT_LIVE_PLOT_PORT` sets the port (default `8765`) |
 
-Job-assist runs **on the submit host**: a live OpenCode watcher ticks on
-artifact snapshots while the user step runs, then one final `opencode run`
-after `telemetry.json`. It does not POST `/chat/completions`, does not source
+Job-assist runs **on the submit host**: a live OpenCode watcher runs **only
+when tool anomalies appear** in `events/` (MPI abort, SLURM failure/OOM,
+node-diag). Healthy CPU/RSS/IO series changes do not spawn OpenCode. It does not POST `/chat/completions`, does not source
 a provider env file, and does not run on compute nodes. OpenCode uses its own
 login-host config. Provider keys that happen to be in the process environment
 are stripped from sidecar `srun`. There is **no HTTP fallback** if `opencode`
@@ -66,7 +66,10 @@ the user command exit code. The model must not change `reason_code`.
 `--agent-node-llm` still does not start a per-node model.
 
 Optional: set `AGENT_OPENCODE_MODEL` (`provider/model`) to pin the model.
-Final job-assist timeout defaults to 300s (`AGENT_OPENCODE_TIMEOUT`).
+Live OpenCode timeout defaults to 300s (`AGENT_OPENCODE_TIMEOUT`). Wrap
+cancels live OpenCode when the user step ends and promotes `assist/live.json`
+to `assist/job.json` if a live summary exists. It does not spawn a post-job
+model unless `AGENT_OPENCODE_FINAL_TIMEOUT` is set to a value greater than 0.
 
 Set `AGENT_MPI_MONITOR_SRC` if mpi-monitor is not at `/shared/mpi-monitor/src`.
 Wrap writes optional PNG under `charts/` when matplotlib is installed (one file

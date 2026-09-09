@@ -209,6 +209,7 @@ def wrap_srun(
     ]
     saved_os = {key: os.environ.get(key) for key in _LLM_ENV_KEYS}
     assist_env = dict(env)
+    assist_env.setdefault("AGENT_OPENCODE_FINAL_TIMEOUT", "0")
     for key in _LLM_ENV_KEYS:
         env.pop(key, None)
         os.environ.pop(key, None)
@@ -351,6 +352,7 @@ def wrap_srun(
             run_dir,
             user_exit=code,
             opencode_runner=opencode_runner,
+            env=assist_env,
         )
         note_path = run_dir / "assist" / "job.json"
         if note_path.is_file():

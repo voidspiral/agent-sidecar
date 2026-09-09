@@ -52,9 +52,8 @@ agent srun --agent-output-dir ./runs -N 2 -n 4 -- ./app
 | `--agent-interval` | 采样间隔秒（默认 `1.0`） |
 | `--agent-live-plot` / `--agent-no-live-plot` | 提交端叠线 HTTP（默认开）。`AGENT_LIVE_PLOT=0` 关闭；`AGENT_LIVE_PLOT_PORT` 改端口（默认 `8765`） |
 
-`job-assist`（默认）在提交端跑 live OpenCode（作业期间看 `series/`/`events/`
-快照），并在写出 `telemetry.json` 后再出一份最终笔记
-（`opencode run --dir <本仓库>`），不再 `POST /chat/completions`，不 source
+`job-assist`（默认）在提交端跑 OpenCode：**仅当 `events/` 出现工具异常**时做
+live 解读（`opencode run --dir <本仓库>`），不再 `POST /chat/completions`，不 source
 任何供应商 env 文件，也不在计算节点上跑模型。OpenCode 用登录节点上自己的
 配置。进程环境里若已有供应商变量，会从 sidecar `srun` 剥掉。缺少 `opencode`
 时 **不会** 回退 HTTP。
@@ -83,8 +82,10 @@ python3 -m agent_sidecar serve --run-dir /shared/agent-runs/<run_id>
 `--agent-no-live-plot` 或 `AGENT_LIVE_PLOT=0` 关闭。端口占用只记
 `collect_errors.live_plot`，不改用户退出码。
 
-可选：设 `AGENT_OPENCODE_MODEL`（`provider/model`）固定模型。最终 job-assist
-默认超时 300s（`AGENT_OPENCODE_TIMEOUT`）。
+可选：设 `AGENT_OPENCODE_MODEL`（`provider/model`）固定模型。job-assist
+live 超时默认 300s（`AGENT_OPENCODE_TIMEOUT`）。用户步骤结束时取消 live
+OpenCode；若已有 `assist/live.json` 摘要则提升为 `assist/job.json`。
+除非设置 `AGENT_OPENCODE_FINAL_TIMEOUT` 大于 0，作业结束后不再新拉一轮模型。
 
 约 60 秒、带 IO 的 MPI 示例见 `examples/mpi_io_load.c`。本集群 NFS 挂在
 `/shared`（`mn:/shared`）。源码、二进制、IO scratch 和 run 产物都放这里，

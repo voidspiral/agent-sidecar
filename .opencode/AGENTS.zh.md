@@ -7,9 +7,13 @@
 
 ## 角色
 
-只在**提交/登录节点**上运行。用户步骤运行期间，解读正在增长的 `series/` 与
-`events/` 快照（live）。wrap 写出 `telemetry.json` 之后，再写最终的
-`assist/job.json`。计算节点 sidecar 只做确定性工具（`proc-monitor`、
+只在**提交/登录节点**上运行。用户步骤运行期间，**仅当 `events/` 里已有工具异常**
+（MPI abort、SLURM 失败/OOM、node-diag）时解读 live 快照。健康作业的 CPU/RSS/IO
+采样变化不是 live OpenCode 触发条件。用户步骤结束时取消 live OpenCode。
+若已有 `assist/live.json` 摘要，wrap 将其提升为 `assist/job.json`
+（`suspected_reason` 抄自 `reason_code`）。除非
+`AGENT_OPENCODE_FINAL_TIMEOUT` 大于 0，wrap 不再在作业结束后新拉一轮
+OpenCode。若你在写最终笔记，请写 `assist/job.json`。计算节点 sidecar 只做确定性工具（`proc-monitor`、
 `mpi-scan`、`slurm-tap`、`node-diag`）。不要刮取 `/proc`。不要在计算节点
 启动 OpenCode。不要调用 `scancel` 或 `scontrol`。不要覆盖 `reason_code`。
 

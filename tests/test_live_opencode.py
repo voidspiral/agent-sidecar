@@ -26,12 +26,13 @@ SERIES_LINE = (
 )
 
 
-def _seed_series(run_dir: Path, extra: str = "") -> None:
+def _seed_series(run_dir: Path, extra: str = "", *, abort: bool = True) -> None:
     ensure_run_layout(run_dir)
     (run_dir / "series" / "h1_pid9.jsonl").write_text(
         SERIES_LINE + extra + "\n", encoding="utf-8"
     )
-    (run_dir / "events" / "stderr.tail").write_text("MPI_Abort\n", encoding="utf-8")
+    if abort:
+        (run_dir / "events" / "stderr.tail").write_text("MPI_Abort\n", encoding="utf-8")
 
 
 class TestLiveOpencode(unittest.TestCase):
@@ -69,6 +70,22 @@ class TestLiveOpencode(unittest.TestCase):
         self.assertIn("improvement suggestions", prompt)
         self.assertIn("分条", prompt)
 
+    def test_tick_skips_healthy_series_without_anomaly(self) -> None:
+        calls: list[list[str]] = []
+
+        def runner(argv, cwd, timeout, env=None):
+            calls.append(argv)
+            return 0, "ok", ""
+
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            _seed_series(run_dir, abort=False)
+            watcher = LiveWatcher(opencode_runner=runner, interval=0)
+            watcher.start(run_dir)
+            self.assertIsNone(watcher.tick())
+            self.assertEqual(calls, [])
+            watcher.stop()
+
     def test_tick_skips_empty_snapshot_without_opencode(self) -> None:
         calls: list[list[str]] = []
 
@@ -105,6 +122,9 @@ class TestLiveOpencode(unittest.TestCase):
                 '"rss_mb":12.0,"io_read_bps":3.0,"io_write_bps":4.0}\n',
                 encoding="utf-8",
             )
+            self.assertIsNone(watcher.tick())
+            self.assertEqual(len(calls), 1)
+            (run_dir / "events" / "node-diag.txt").write_text("oom_kill=1\n", encoding="utf-8")
             self.assertIsNotNone(watcher.tick())
             self.assertEqual(len(calls), 2)
             watcher.stop()
@@ -184,3 +204,16 @@ class TestLiveOpencode(unittest.TestCase):
         with patch.dict(os.environ, {"AGENT_OPENCODE_LIVE_INTERVAL": "7.5"}):
             watcher = LiveWatcher(opencode_runner=lambda *_a, **_k: (0, "", ""), interval=None)
             self.assertEqual(watcher.interval, 7.5)
+
+    def test_timeout_from_env_defaults_to_assist_budget(self) -> None:
+        from agent_sidecar.live_opencode import live_timeout
+        from agent_sidecar.opencode_assist import DEFAULT_TIMEOUT
+
+        with patch.dict(os.environ, {"AGENT_OPENCODE_TIMEOUT": ""}):
+            watcher = LiveWatcher(opencode_runner=lambda *_a, **_k: (0, "", ""), interval=0)
+            self.assertEqual(watcher._timeout, DEFAULT_TIMEOUT)
+            self.assertEqual(live_timeout(), DEFAULT_TIMEOUT)
+        with patch.dict(os.environ, {"AGENT_OPENCODE_TIMEOUT": "120"}):
+            self.assertEqual(live_timeout(), 120.0)
+            watcher = LiveWatcher(opencode_runner=lambda *_a, **_k: (0, "", ""), interval=0)
+            self.assertEqual(watcher._timeout, 120.0)

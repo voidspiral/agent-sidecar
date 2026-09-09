@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
-from agent_sidecar.opencode_assist import run_opencode_assist
+from agent_sidecar.opencode_assist import (
+    _record_job_assist_success,
+    note_summary,
+    run_opencode_assist,
+)
 from agent_sidecar.spi import Event
+from agent_sidecar.telemetry import load_telemetry
 
 FORBIDDEN_ACTIONS = ("scancel", "scontrol")
 
@@ -63,6 +69,32 @@ def write_job_assist_note(
     return path
 
 
+def final_assist_timeout(
+    timeout: float | None = None,
+    env: dict[str, str] | None = None,
+) -> float | None:
+    """Post-job OpenCode budget. None means use AGENT_OPENCODE_TIMEOUT (300s)."""
+    if timeout is not None:
+        return float(timeout)
+    raw = (env or os.environ).get("AGENT_OPENCODE_FINAL_TIMEOUT")
+    if raw is None or raw == "":
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def promote_live_assist(run_dir: Path) -> bool:
+    """Copy assist/live.json summary into job.json using telemetry.reason_code."""
+    summary = note_summary(run_dir / "assist" / "live.json")
+    if not summary:
+        return False
+    doc = load_telemetry(run_dir)
+    _record_job_assist_success(run_dir, doc, summary)
+    return True
+
+
 def run_job_assist(
     run_dir: Path,
     *,
@@ -73,11 +105,16 @@ def run_job_assist(
     env: dict[str, str] | None = None,
     **_ignored,
 ) -> int:
+    if promote_live_assist(run_dir):
+        return user_exit
+    budget = final_assist_timeout(timeout, env)
+    if budget is not None and budget <= 0:
+        return user_exit
     return run_opencode_assist(
         run_dir,
         user_exit=user_exit,
         opencode_runner=opencode_runner,
         repo_root=repo_root,
-        timeout=timeout,
+        timeout=budget,
         env=env,
     )

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from agent_sidecar.opencode_assist import (
+    DEFAULT_TIMEOUT,
     OpenCodeError,
     default_opencode_runner,
     default_repo_root,
@@ -27,6 +28,18 @@ ATTACH_HINT = (
 )
 
 Runner = Callable[[list[str], str, float, dict[str, str] | None], tuple[int, str, str]]
+
+
+def live_timeout(value: float | None = None, env: dict[str, str] | None = None) -> float:
+    if value is not None:
+        return float(value)
+    raw = (env or os.environ).get("AGENT_OPENCODE_TIMEOUT") or ""
+    if raw:
+        try:
+            return float(raw)
+        except ValueError:
+            return DEFAULT_TIMEOUT
+    return DEFAULT_TIMEOUT
 
 
 def live_interval(value: float | None = None, env: dict[str, str] | None = None) -> float:
@@ -84,8 +97,8 @@ def _evidence_paths(run_dir: Path) -> list[str]:
     return out
 
 
-def _snapshot_hash(summary: dict[str, Any], anomalies: list[dict[str, Any]]) -> str:
-    blob = json.dumps({"summary": summary, "anomalies": anomalies}, sort_keys=True)
+def _anomaly_hash(anomalies: list[dict[str, Any]]) -> str:
+    blob = json.dumps(anomalies, sort_keys=True)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
@@ -97,13 +110,13 @@ class LiveWatcher:
         interval: float | None = None,
         env: dict[str, str] | None = None,
         repo_root: Path | None = None,
-        timeout: float = 60.0,
+        timeout: float | None = None,
     ) -> None:
         self.interval = live_interval(interval, env)
         self._runner = opencode_runner or default_opencode_runner
         self._env = env
         self._root = repo_root or default_repo_root()
-        self._timeout = timeout
+        self._timeout = live_timeout(timeout, env)
         self._run_dir: Path | None = None
         self._stopped = True
         self._last_hash: str | None = None
@@ -129,9 +142,9 @@ class LiveWatcher:
         run_dir = self._run_dir
         summary = summarize_series(run_dir)
         anomalies = anomalies_from_artifacts(run_dir)
-        if not anomalies and int(summary.get("pid_count") or 0) == 0:
+        if not anomalies:
             return None
-        digest = _snapshot_hash(summary, anomalies)
+        digest = _anomaly_hash(anomalies)
         if digest == self._last_hash:
             return None
         self._last_hash = digest

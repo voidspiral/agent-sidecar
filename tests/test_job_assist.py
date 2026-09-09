@@ -185,3 +185,60 @@ class TestJobAssist(unittest.TestCase):
             self.assertIn("reason_code", prompt)
             self.assertNotIn(series_line, prompt)
             self.assertIn("series/h1_pid9.jsonl", prompt)
+
+    def test_promotes_live_json_and_skips_runner(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            _seed(run_dir, reason="mpi_abort")
+            assist = run_dir / "assist"
+            assist.mkdir(exist_ok=True)
+            (assist / "live.json").write_text(
+                json.dumps(
+                    {
+                        "host": "submit",
+                        "summary": "1. 结论：作业中途 MPI abort。",
+                        "suspected_reason": "timeout",
+                        "actions": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            runner = _ok_runner()
+            code = run_job_assist(run_dir, opencode_runner=runner, user_exit=7)
+            self.assertEqual(code, 7)
+            self.assertEqual(len(runner.calls), 0)
+            note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
+            self.assertEqual(note["suspected_reason"], "mpi_abort")
+            self.assertIn("MPI abort", note["summary"])
+            doc = load_telemetry(run_dir)
+            self.assertEqual(doc["reason_code"], "mpi_abort")
+            self.assertIn("assist/job.json", doc.get("evidence_paths") or [])
+
+    def test_skips_final_opencode_when_timeout_zero(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            _seed(run_dir, reason="ok")
+            runner = _ok_runner()
+            code = run_job_assist(
+                run_dir,
+                opencode_runner=runner,
+                user_exit=0,
+                timeout=0,
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(len(runner.calls), 0)
+            self.assertFalse((run_dir / "assist" / "job.json").is_file())
+
+    def test_final_timeout_from_env(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            _seed(run_dir, reason="ok")
+            runner = _ok_runner()
+            code = run_job_assist(
+                run_dir,
+                opencode_runner=runner,
+                user_exit=0,
+                env={"AGENT_OPENCODE_FINAL_TIMEOUT": "0"},
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(len(runner.calls), 0)

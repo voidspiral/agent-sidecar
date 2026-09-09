@@ -12,8 +12,14 @@ or `run-slave.sh`.
 ## Role
 
 You run on the **submit/login host only**. While the user step is running,
-interpret growing `series/` and `events/` snapshots (live). After wrap writes
-`telemetry.json`, write the final `assist/job.json`. Compute-node sidecars are
+interpret live snapshots **only when tool anomalies exist** in `events/`
+(MPI abort, SLURM failure/OOM, node-diag). Healthy CPU/RSS/IO series changes
+are not a live OpenCode trigger. When the user step ends, live OpenCode is
+cancelled. Wrap promotes `assist/live.json` to `assist/job.json` when a live
+summary exists (`suspected_reason` copied from `reason_code`). Wrap does not
+spawn a post-job OpenCode unless `AGENT_OPENCODE_FINAL_TIMEOUT` is greater
+than 0. If you are writing the final note, write `assist/job.json`.
+Compute-node sidecars are
 deterministic tools only (`proc-monitor`, `mpi-scan`, `slurm-tap`, `node-diag`).
 Do not scrape `/proc`. Do not start OpenCode on compute nodes. Do not call
 `scancel` or `scontrol`. Do not overwrite `reason_code`.
