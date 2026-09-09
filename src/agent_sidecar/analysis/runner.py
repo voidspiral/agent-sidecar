@@ -124,7 +124,8 @@ def run_analysis(
     _write_analysis(run_dir, analysis)
     job_path = run_dir / "assist" / "job.json"
     wrote_job = False
-    if not job_path.is_file():
+    # When --llm is requested, leave job.json for OpenCode; otherwise fill if missing.
+    if not use_llm and not job_path.is_file():
         write_job_assist_note(
             run_dir,
             reason_code=reason,
@@ -144,12 +145,23 @@ def run_analysis(
     if use_llm and opencode_runner is not None:
         from agent_sidecar.opencode_assist import run_opencode_assist
 
-        # Only call when explicitly requested; runner injected in tests.
+        # Avoid pack note short-circuiting default_opencode_runner's note_summary poll.
+        if job_path.is_file():
+            job_path.unlink()
         run_opencode_assist(
             run_dir,
             user_exit=int(summary.get("exit_code") or 1),
             opencode_runner=opencode_runner,
             env=env,
         )
+        if not job_path.is_file():
+            write_job_assist_note(
+                run_dir,
+                reason_code=reason,
+                summary=zh,
+                evidence_paths=list(doc.get("evidence_paths") or [])
+                + ["assist/analysis.json"],
+            )
+            _refresh_telemetry_evidence(run_dir, load_telemetry(run_dir), "assist/job.json")
 
     return {"pack": pack, "reason_code": reason, "analysis": analysis}
