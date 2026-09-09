@@ -78,6 +78,27 @@ def _refresh_telemetry_evidence(run_dir: Path, doc: dict[str, Any], *rels: str) 
     )
 
 
+def _prefer_names_from_meta(run_dir: Path) -> tuple[str, ...]:
+    meta_path = run_dir / "meta.json"
+    if not meta_path.is_file():
+        return ()
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ()
+    cmd = meta.get("command")
+    if not isinstance(cmd, list):
+        return ()
+    names: list[str] = []
+    for tok in cmd:
+        if not isinstance(tok, str) or tok.startswith("-"):
+            continue
+        base = Path(tok).name
+        if base and base not in {"srun", "mpirun", "mpiexec"}:
+            names.append(base)
+    return tuple(dict.fromkeys(names))
+
+
 def run_analysis(
     run_dir: Path,
     *,
@@ -91,10 +112,12 @@ def run_analysis(
     reason = str(doc.get("reason_code") or "execution_error")
     summary = dict(doc.get("summary") or {})
     pack = select_pack(reason, summary)
+    phase2 = code_root is not None
 
     code_hits: list[dict[str, Any]] = []
-    if code_root is not None:
-        code_hits = scan_code_root(Path(code_root))
+    if phase2:
+        prefer = _prefer_names_from_meta(run_dir)
+        code_hits = scan_code_root(Path(code_root), prefer_names=prefer)
 
     if pack == "mpi_abort":
         analysis = mpi_abort_pack.build_mpi_abort_analysis(
@@ -111,6 +134,8 @@ def run_analysis(
             "pack": pack,
             "reason_code": reason,
             "code_hits": code_hits,
+            "needs_source": not code_hits,
+            "ask_code_cmd": mpi_abort_pack.ask_code_command(run_dir),
             "note": "no dedicated pack in this release",
             "suggestions": ["查看 telemetry.json anomalies 与 events/"],
         }
@@ -124,16 +149,18 @@ def run_analysis(
     _write_analysis(run_dir, analysis)
     job_path = run_dir / "assist" / "job.json"
     wrote_job = False
-    # When --llm is requested, leave job.json for OpenCode; otherwise fill if missing.
-    if not use_llm and not job_path.is_file():
-        write_job_assist_note(
-            run_dir,
-            reason_code=reason,
-            summary=zh,
-            evidence_paths=list(doc.get("evidence_paths") or [])
-            + ["assist/analysis.json"],
-        )
-        wrote_job = True
+    allow_overwrite = phase2 or use_llm
+
+    if not use_llm:
+        if allow_overwrite or not job_path.is_file():
+            write_job_assist_note(
+                run_dir,
+                reason_code=reason,
+                summary=zh,
+                evidence_paths=list(doc.get("evidence_paths") or [])
+                + ["assist/analysis.json"],
+            )
+            wrote_job = True
 
     _refresh_telemetry_evidence(
         run_dir,
@@ -153,6 +180,7 @@ def run_analysis(
             user_exit=int(summary.get("exit_code") or 1),
             opencode_runner=opencode_runner,
             env=env,
+            include_analysis=True,
         )
         if not job_path.is_file():
             write_job_assist_note(

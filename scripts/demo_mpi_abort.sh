@@ -61,11 +61,14 @@ if [[ -n "${RUN}" ]]; then
   ls -l "$RUN/assist" 2>/dev/null || true
   echo "---- analysis.json ----"
   cat "$RUN/assist/analysis.json" 2>/dev/null || echo "(no analysis.json)"
-  echo "---- job.json ----"
+  echo "---- job.json (phase-1: ask for --code, no file:line) ----"
   cat "$RUN/assist/job.json" 2>/dev/null || echo "(no job.json)"
-  echo "---- offline analy re-run ----"
+  echo "---- phase-1 offline analy (no --code) ----"
   python3 -m agent_sidecar analy --run-dir "$RUN" || true
+  echo "---- phase-2 optional: authorized source (uncomment to run) ----"
+  echo "# python3 -m agent_sidecar analy --run-dir \"$RUN\" --code $ROOT/examples"
+  echo "# python3 -m agent_sidecar analy --run-dir \"$RUN\" --code $ROOT/examples --llm"
   echo "---- files ----"
   find "$RUN" -type f | sort
 fi
-echo "======== done (expect reason_code=mpi_abort, pid_count>0) ========"
+echo "======== done (expect reason_code=mpi_abort, pid_count>0, needs_source=true) ========"

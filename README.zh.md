@@ -158,15 +158,21 @@ job-assist 在登录节点加载，用来解读工具产物，不在计算节点
 | [mpi-abort](.opencode/skills/mpi-abort/SKILL.md) | `reason_code=mpi_abort` 或 `assist/analysis.json` 的 pack=`mpi_abort` |
 | [node-diag](.opencode/skills/node-diag/SKILL.md) | `reason_code=node_local` 或 `events/node-diag.txt` 出现作业内 OOM / cgroup `oom_kill` / NFS hang |
 
-离线确定性分析（默认不调 OpenCode）：
+离线确定性分析（默认不调 OpenCode）。**两阶段：**（1）不带 `--code`：只根据
+产物给现象与假设，并索要源码；（2）带 `--code`：仅引用用户授权树内的命中。
+之后的 `--llm` 会从磁盘重灌 `assist/analysis.json`（新的 `opencode run`，
+不依赖上一轮聊天记忆）。
 
 ```bash
+# 阶段1 — 无源码
 python3 -m agent_sidecar analy --run-dir /shared/agent-runs/<run_id>
-python3 -m agent_sidecar analy --run-dir DIR --code /path/to/src   # 可选源码只读检索
-python3 -m agent_sidecar analy --run-dir DIR --llm                 # 可选 OpenCode
+# 阶段2 — 用户授权源码
+python3 -m agent_sidecar analy --run-dir DIR --code /path/to/src
+python3 -m agent_sidecar analy --run-dir DIR --code /path/to/src --llm
 ```
 
-MPI abort 故障演示（期望 `reason_code=mpi_abort`、`pid_count>0`、`assist/analysis.json`）：
+MPI abort 故障演示（期望 `reason_code=mpi_abort`、`pid_count>0`、
+`needs_source=true` 直到提供 `--code`）：
 
 ```bash
 bash /shared/agent-sidecar/scripts/demo_mpi_abort.sh

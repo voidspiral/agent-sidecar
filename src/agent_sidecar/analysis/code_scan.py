@@ -14,6 +14,7 @@ def scan_code_root(
     code_root: Path,
     *,
     needles: tuple[str, ...] = ("MPI_Abort",),
+    prefer_names: tuple[str, ...] = (),
 ) -> list[dict[str, Any]]:
     root = Path(code_root)
     if not root.is_dir():
@@ -47,6 +48,23 @@ def scan_code_root(
                         "line": line[:240],
                     }
                 )
-                if len(hits) >= 20:
-                    return hits
-    return hits
+                if len(hits) >= 40:
+                    break
+        if len(hits) >= 40:
+            break
+
+    if not prefer_names or not hits:
+        return hits[:20]
+
+    preferred: list[dict[str, Any]] = []
+    other: list[dict[str, Any]] = []
+    lowered = tuple(n.lower() for n in prefer_names if n)
+    for hit in hits:
+        path_l = str(hit.get("path") or "").lower()
+        stem = Path(path_l).stem
+        if any(name in path_l or name == stem or stem.startswith(name) for name in lowered):
+            preferred.append(hit)
+        else:
+            other.append(hit)
+    ordered = preferred + other
+    return ordered[:20]

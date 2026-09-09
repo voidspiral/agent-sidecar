@@ -3,7 +3,8 @@ name: mpi-abort
 description: >-
   Interpret MPI_Abort / PMIx abort evidence and assist/analysis.json from the
   mpi_abort pack. Use when reason_code is mpi_abort or analysis pack is
-  mpi_abort.
+  mpi_abort. Two-phase: without code_hits ask for --code; never invent
+  file:line.
 compatibility: opencode
 ---
 
@@ -22,7 +23,7 @@ launch-fail) and **not** node OOM (`node_local`).
 {run_dir}/
   telemetry.json
   events/stderr.tail
-  assist/analysis.json    # pack excerpts (abort_rank, errorcode, series brief)
+  assist/analysis.json    # pack excerpts (abort_rank, errorcode, needs_source)
   assist/job.json         # Chinese numbered summary when written
   series/*.jsonl          # may be present if ranks ran before abort
 ```
@@ -34,8 +35,15 @@ launch-fail) and **not** node OOM (`node_local`).
    missing.
 3. If `pid_count>0` / series brief exists, note that the job started then
    aborted — not ENOENT.
-4. If `--code` produced `code_hits`, cite path:lineno only from those hits.
-5. Suggest checking the aborting rank's error path and a corrected
+4. **Phase 1 (no source):** If `needs_source` is true or `code_hits` is empty,
+   state that source-level location was **not** done. Ask the operator to
+   re-run `ask_code_cmd` (or
+   `agent analy --run-dir <run_dir> --code /path/to/src`). **Do not invent
+   `file:line`.** List only hypothesis-level causes (显式 Abort / 断言 / 通信).
+5. **Phase 2 (authorized):** If `code_hits` is non-empty, cite
+   path:lineno **only** from those hits and say they are under the
+   user-authorized `--code` tree.
+6. Suggest checking the aborting rank's error path and a corrected
    `agent srun` line with `--agent-match` and a shared binary path.
 
 Copy `suspected_reason` from `reason_code` (`mpi_abort`). `actions` stays
