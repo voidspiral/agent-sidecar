@@ -151,7 +151,23 @@ nodes. Full index: [.opencode/skills.md](.opencode/skills.md).
 |-------|-------------|
 | [mpi-monitor](.opencode/skills/mpi-monitor/SKILL.md) | Interpret CPU/RSS/IO from `series/` and `charts/` paths; empty series vs start failure |
 | [launch-fail](.opencode/skills/launch-fail/SKILL.md) | `reason_code=execution_error` and `pid_count=0` (ENOENT / binary not on NFS) |
+| [mpi-abort](.opencode/skills/mpi-abort/SKILL.md) | `reason_code=mpi_abort` or `assist/analysis.json` pack `mpi_abort` |
 | [node-diag](.opencode/skills/node-diag/SKILL.md) | `reason_code=node_local` or `events/node-diag.txt` shows in-job OOM / cgroup `oom_kill` / NFS hang |
+
+Offline deterministic analysis (no OpenCode by default):
+
+```bash
+python3 -m agent_sidecar analy --run-dir /shared/agent-runs/<run_id>
+python3 -m agent_sidecar analy --run-dir DIR --code /path/to/src   # optional
+python3 -m agent_sidecar analy --run-dir DIR --llm                 # opt-in OpenCode
+```
+
+MPI abort fixture demo (expects `reason_code=mpi_abort`, `pid_count>0`,
+`assist/analysis.json`):
+
+```bash
+bash /shared/agent-sidecar/scripts/demo_mpi_abort.sh
+```
 
 ## Test cluster
 

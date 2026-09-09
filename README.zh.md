@@ -155,7 +155,22 @@ job-assist 在登录节点加载，用来解读工具产物，不在计算节点
 |-------|--------|
 | [mpi-monitor](.opencode/skills/mpi-monitor/SKILL.md) | 解读 `series/` 的 CPU/RSS/IO 与 `charts/` 路径；空 series 时区分采集失败与作业未启动 |
 | [launch-fail](.opencode/skills/launch-fail/SKILL.md) | `reason_code=execution_error` 且 `pid_count=0`（ENOENT / 二进制不在 NFS） |
+| [mpi-abort](.opencode/skills/mpi-abort/SKILL.md) | `reason_code=mpi_abort` 或 `assist/analysis.json` 的 pack=`mpi_abort` |
 | [node-diag](.opencode/skills/node-diag/SKILL.md) | `reason_code=node_local` 或 `events/node-diag.txt` 出现作业内 OOM / cgroup `oom_kill` / NFS hang |
+
+离线确定性分析（默认不调 OpenCode）：
+
+```bash
+python3 -m agent_sidecar analy --run-dir /shared/agent-runs/<run_id>
+python3 -m agent_sidecar analy --run-dir DIR --code /path/to/src   # 可选源码只读检索
+python3 -m agent_sidecar analy --run-dir DIR --llm                 # 可选 OpenCode
+```
+
+MPI abort 故障演示（期望 `reason_code=mpi_abort`、`pid_count>0`、`assist/analysis.json`）：
+
+```bash
+bash /shared/agent-sidecar/scripts/demo_mpi_abort.sh
+```
 
 ## 测试集群
 
