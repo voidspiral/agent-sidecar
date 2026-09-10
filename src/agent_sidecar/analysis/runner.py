@@ -9,6 +9,7 @@ from typing import Any, Callable
 from agent_sidecar.analysis.code_scan import scan_code_root
 from agent_sidecar.analysis import launch_fail as launch_fail_pack
 from agent_sidecar.analysis import mpi_abort as mpi_abort_pack
+from agent_sidecar.analysis import mpi_segfault as mpi_segfault_pack
 from agent_sidecar.analysis.packs import select_pack
 from agent_sidecar.assist import write_job_assist_note
 from agent_sidecar.telemetry import (
@@ -117,13 +118,23 @@ def run_analysis(
     code_hits: list[dict[str, Any]] = []
     if phase2:
         prefer = _prefer_names_from_meta(run_dir)
-        code_hits = scan_code_root(Path(code_root), prefer_names=prefer)
+        needles: tuple[str, ...] = ("MPI_Abort",)
+        if pack == "mpi_segfault":
+            needles = ("segfault", "null deref", "*(volatile",)
+        code_hits = scan_code_root(
+            Path(code_root), needles=needles, prefer_names=prefer
+        )
 
     if pack == "mpi_abort":
         analysis = mpi_abort_pack.build_mpi_abort_analysis(
             run_dir, reason_code=reason, summary=summary, code_hits=code_hits
         )
         zh = mpi_abort_pack.chinese_summary(analysis)
+    elif pack == "mpi_segfault":
+        analysis = mpi_segfault_pack.build_mpi_segfault_analysis(
+            run_dir, reason_code=reason, summary=summary, code_hits=code_hits
+        )
+        zh = mpi_segfault_pack.chinese_summary(analysis)
     elif pack == "launch_fail":
         analysis = launch_fail_pack.build_launch_fail_analysis(
             reason_code=reason, summary=summary

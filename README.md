@@ -152,6 +152,7 @@ nodes. Full index: [.opencode/skills.md](.opencode/skills.md).
 | [mpi-monitor](.opencode/skills/mpi-monitor/SKILL.md) | Interpret CPU/RSS/IO from `series/` and `charts/` paths; empty series vs start failure |
 | [launch-fail](.opencode/skills/launch-fail/SKILL.md) | `reason_code=execution_error` and `pid_count=0` (ENOENT / binary not on NFS) |
 | [mpi-abort](.opencode/skills/mpi-abort/SKILL.md) | `reason_code=mpi_abort` or `assist/analysis.json` pack `mpi_abort` |
+| [mpi-segfault](.opencode/skills/mpi-segfault/SKILL.md) | `reason_code=mpi_segfault` or `assist/analysis.json` pack `mpi_segfault` |
 | [node-diag](.opencode/skills/node-diag/SKILL.md) | `reason_code=node_local` or `events/node-diag.txt` shows in-job OOM / cgroup `oom_kill` / NFS hang |
 
 Offline deterministic analysis (no OpenCode by default). **Two phases:**
@@ -172,6 +173,13 @@ MPI abort fixture demo (expects `reason_code=mpi_abort`, `pid_count>0`,
 
 ```bash
 bash /shared/agent-sidecar/scripts/demo_mpi_abort.sh
+```
+
+MPI segfault fixture demo (expects `reason_code=mpi_segfault`, `pid_count>0`,
+`needs_source=true` until `--code`):
+
+```bash
+bash /shared/agent-sidecar/scripts/demo_mpi_segfault.sh
 ```
 
 ## Test cluster
