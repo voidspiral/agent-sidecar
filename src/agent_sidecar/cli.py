@@ -1,4 +1,4 @@
-"""agent CLI: srun / sbatch / salloc / supervisor / report / serve."""
+"""agent CLI: srun / sbatch / salloc / supervisor / report / serve / analy."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ from agent_sidecar.tools.node_diag import NodeDiag
 from agent_sidecar.tools.proc_monitor import ProcMonitor
 from agent_sidecar.tools.slurm_tap import SlurmTap
 
-USAGE = "usage: agent srun|sbatch|salloc|supervisor|report|serve ..."
+USAGE = "usage: agent srun|sbatch|salloc|supervisor|report|serve|analy ..."
 
 PLUGIN_FACTORIES = {
     "proc-monitor": ProcMonitor,
@@ -260,6 +260,33 @@ def cmd_report(argv: list[str]) -> int:
     return 0
 
 
+def cmd_analy(argv: list[str]) -> int:
+    p = argparse.ArgumentParser(prog="agent analy")
+    p.add_argument("--run-dir", required=True, type=Path)
+    p.add_argument("--code", type=Path, default=None, help="optional read-only source tree")
+    p.add_argument("--llm", action="store_true", help="opt-in OpenCode after deterministic pack")
+    try:
+        ns = p.parse_args(argv)
+    except SystemExit as exc:
+        return int(exc.code) if exc.code is not None else 2
+    if not ns.run_dir.is_dir():
+        print(f"run-dir not found: {ns.run_dir}", file=sys.stderr)
+        return 2
+    from agent_sidecar.analysis import run_analysis
+    from agent_sidecar.opencode_assist import default_opencode_runner
+
+    result = run_analysis(
+        ns.run_dir,
+        code_root=ns.code,
+        use_llm=bool(ns.llm),
+        opencode_runner=default_opencode_runner if ns.llm else None,
+        env=dict(os.environ),
+    )
+    analysis_path = ns.run_dir / "assist" / "analysis.json"
+    print(f"[agent] analy pack={result.get('pack')} -> {analysis_path}", flush=True)
+    return 0
+
+
 def cmd_serve(argv: list[str]) -> int:
     from agent_sidecar.live_plot_http import DEFAULT_HOST, DEFAULT_PORT, LivePlotServer
 
@@ -299,6 +326,8 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_supervisor(argv[1:])
         if cmd == "report":
             return cmd_report(argv[1:])
+        if cmd == "analy":
+            return cmd_analy(argv[1:])
         if cmd == "serve":
             return cmd_serve(argv[1:])
         parsed = parse_agent_argv(argv)
