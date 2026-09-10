@@ -25,7 +25,7 @@ def scan_code_root(
     for path in sorted(root.rglob("*")):
         if not path.is_file():
             continue
-        if path.suffix.lower() not in TEXT_SUFFIXES and path.suffix != "":
+        if path.suffix.lower() not in TEXT_SUFFIXES:
             continue
         try:
             data = path.read_bytes()

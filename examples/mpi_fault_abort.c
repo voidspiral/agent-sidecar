@@ -3,6 +3,7 @@
  * Default: work 10s, abort on rank 0 with errorcode 1.
  * All ranks work first so proc-monitor can sample (pid_count > 0).
  */
+#define _DEFAULT_SOURCE
 #define _POSIX_C_SOURCE 200809L
 #include <mpi.h>
 #include <stdio.h>
