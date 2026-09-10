@@ -110,11 +110,27 @@ def run_job_assist(
     budget = final_assist_timeout(timeout, env)
     if budget is not None and budget <= 0:
         return user_exit
-    return run_opencode_assist(
+    run_dir = Path(run_dir)
+    note_path = run_dir / "assist" / "job.json"
+    # Deterministic packs may have already written job.json; clear it so the
+    # OpenCode runner does not treat the pack note as a completed model write.
+    pack_backup: str | None = None
+    if note_path.is_file():
+        pack_backup = note_path.read_text(encoding="utf-8")
+        note_path.unlink()
+    include_analysis = (run_dir / "assist" / "analysis.json").is_file()
+    code = run_opencode_assist(
         run_dir,
         user_exit=user_exit,
         opencode_runner=opencode_runner,
         repo_root=repo_root,
         timeout=budget,
         env=env,
+        include_analysis=include_analysis,
     )
+    if pack_backup and not note_summary(note_path):
+        note_path.parent.mkdir(parents=True, exist_ok=True)
+        note_path.write_text(pack_backup, encoding="utf-8")
+        doc = load_telemetry(run_dir)
+        _record_job_assist_success(run_dir, doc, note_summary(note_path))
+    return code

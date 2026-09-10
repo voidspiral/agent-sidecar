@@ -68,8 +68,9 @@ the user command exit code. The model must not change `reason_code`.
 Optional: set `AGENT_OPENCODE_MODEL` (`provider/model`) to pin the model.
 Live OpenCode timeout defaults to 300s (`AGENT_OPENCODE_TIMEOUT`). Wrap
 cancels live OpenCode when the user step ends and promotes `assist/live.json`
-to `assist/job.json` if a live summary exists. It does not spawn a post-job
-model unless `AGENT_OPENCODE_FINAL_TIMEOUT` is set to a value greater than 0.
+to `assist/job.json` if a live summary exists. Otherwise it runs a post-job
+OpenCode (same default budget unless `AGENT_OPENCODE_FINAL_TIMEOUT` is set).
+Set `AGENT_OPENCODE_FINAL_TIMEOUT=0` to skip the post-job model.
 
 Set `AGENT_MPI_MONITOR_SRC` if mpi-monitor is not at `/shared/mpi-monitor/src`.
 Wrap writes optional PNG under `charts/` when matplotlib is installed (one file

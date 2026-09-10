@@ -11,9 +11,10 @@
 （MPI abort、SLURM 失败/OOM、node-diag）时解读 live 快照。健康作业的 CPU/RSS/IO
 采样变化不是 live OpenCode 触发条件。用户步骤结束时取消 live OpenCode。
 若已有 `assist/live.json` 摘要，wrap 将其提升为 `assist/job.json`
-（`suspected_reason` 抄自 `reason_code`）。除非
-`AGENT_OPENCODE_FINAL_TIMEOUT` 大于 0，wrap 不再在作业结束后新拉一轮
-OpenCode。若你在写最终笔记，请写 `assist/job.json`。计算节点 sidecar 只做确定性工具（`proc-monitor`、
+（`suspected_reason` 抄自 `reason_code`）。否则 wrap 会跑一轮 post-job
+OpenCode（超时取 `AGENT_OPENCODE_FINAL_TIMEOUT`；未设置则用
+`AGENT_OPENCODE_TIMEOUT`）。设 `AGENT_OPENCODE_FINAL_TIMEOUT=0` 可跳过
+作业结束后的模型。若你在写最终笔记，请写 `assist/job.json`。计算节点 sidecar 只做确定性工具（`proc-monitor`、
 `mpi-scan`、`slurm-tap`、`node-diag`）。不要刮取 `/proc`。不要在计算节点
 启动 OpenCode。不要调用 `scancel` 或 `scontrol`。不要覆盖 `reason_code`。
 

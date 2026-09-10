@@ -85,7 +85,9 @@ python3 -m agent_sidecar serve --run-dir /shared/agent-runs/<run_id>
 可选：设 `AGENT_OPENCODE_MODEL`（`provider/model`）固定模型。job-assist
 live 超时默认 300s（`AGENT_OPENCODE_TIMEOUT`）。用户步骤结束时取消 live
 OpenCode；若已有 `assist/live.json` 摘要则提升为 `assist/job.json`。
-除非设置 `AGENT_OPENCODE_FINAL_TIMEOUT` 大于 0，作业结束后不再新拉一轮模型。
+作业结束时若无 live 摘要可 promote，则默认再跑一轮 post-job OpenCode（超时同
+`AGENT_OPENCODE_TIMEOUT`，可用 `AGENT_OPENCODE_FINAL_TIMEOUT` 覆盖）。设
+`AGENT_OPENCODE_FINAL_TIMEOUT=0` 可跳过作业结束后的模型。
 
 MPI 示例见 `examples/mpi_io_load.c`：每 rank 先约 60 秒 NFS 写/fsync/读，
 再 30 秒本地 CPU burn（`mpi_io_load [io_seconds] [work_dir] [cpu_seconds]`；
