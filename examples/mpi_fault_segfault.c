@@ -50,6 +50,8 @@ int main(int argc, char **argv)
         fflush(stderr);
         *(volatile int *)0 = 1;
     }
-    MPI_Finalize();
+    /* Survivors must not hang in MPI_Finalize after a peer SIGSEGV. */
+    sleep(3);
+    _exit(0);
     return 0;
 }
