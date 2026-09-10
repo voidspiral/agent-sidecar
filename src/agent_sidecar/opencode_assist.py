@@ -14,6 +14,7 @@ from typing import Any, Callable
 
 DEFAULT_TIMEOUT = 300.0
 _POLL = 0.2
+_HEARTBEAT = 15.0
 
 Runner = Callable[[list[str], str, float, dict[str, str] | None], tuple[int, str, str]]
 
@@ -71,9 +72,10 @@ def build_assist_prompt(
     return (
         "You are job-assist for this HPC SLURM sidecar. "
         "Read only the JSON contract below. Do not scrape /proc. "
+        "Do not run bash, skills, or explore the filesystem. "
         "Do not embed series JSONL bodies. JSONL and PNG are named only via evidence_paths. "
         f"{extra}"
-        f"Write {run_dir / 'assist' / 'job.json'} with host=submit, "
+        f"Write {run_dir / 'assist' / 'job.json'} immediately with host=submit, "
         "summary in Simplified Chinese (简体中文), 分条 as a numbered list "
         "(1. 2. 3., one finding per item, not a paragraph): interpret the contract "
         "and include concrete improvement suggestions (srun flags, NFS paths, "
@@ -190,6 +192,8 @@ def default_opencode_runner(
         start_new_session=True,
     )
     deadline = time.monotonic() + max(0.0, float(timeout))
+    started = time.monotonic()
+    next_beat = started + _HEARTBEAT
     try:
         while True:
             if cancel is not None and getattr(cancel, "is_set", lambda: False)():
@@ -201,7 +205,8 @@ def default_opencode_runner(
             rc = proc.poll()
             if rc is not None:
                 return rc, "", ""
-            remaining = deadline - time.monotonic()
+            now = time.monotonic()
+            remaining = deadline - now
             if remaining <= 0:
                 _stop_process(proc)
                 if note_summary(note_path):
@@ -210,6 +215,14 @@ def default_opencode_runner(
                     "opencode_timeout",
                     f"opencode timed out after {timeout}s",
                 )
+            if now >= next_beat:
+                elapsed = int(now - started)
+                print(
+                    f"[agent] OpenCode still running… {elapsed}s "
+                    f"(timeout {int(timeout)}s, waiting for {note_path})",
+                    flush=True,
+                )
+                next_beat = now + _HEARTBEAT
             time.sleep(min(_POLL, remaining))
     except BaseException:
         _stop_process(proc)

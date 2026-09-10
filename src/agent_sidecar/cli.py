@@ -275,6 +275,14 @@ def cmd_analy(argv: list[str]) -> int:
     from agent_sidecar.analysis import run_analysis
     from agent_sidecar.opencode_assist import default_opencode_runner
 
+    print(
+        f"[agent] analy run_dir={ns.run_dir}"
+        + (f" code={ns.code}" if ns.code else "")
+        + (" llm=1" if ns.llm else " llm=0"),
+        flush=True,
+    )
+    if ns.llm:
+        print("[agent] analy: deterministic pack then OpenCode (may take up to AGENT_OPENCODE_TIMEOUT)", flush=True)
     result = run_analysis(
         ns.run_dir,
         code_root=ns.code,
@@ -283,7 +291,12 @@ def cmd_analy(argv: list[str]) -> int:
         env=dict(os.environ),
     )
     analysis_path = ns.run_dir / "assist" / "analysis.json"
+    job_path = ns.run_dir / "assist" / "job.json"
     print(f"[agent] analy pack={result.get('pack')} -> {analysis_path}", flush=True)
+    if job_path.is_file():
+        print(f"[agent] analy job-assist -> {job_path}", flush=True)
+    elif ns.llm:
+        print("[agent] analy: OpenCode did not write assist/job.json", file=sys.stderr, flush=True)
     return 0
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import sys
 import tempfile
@@ -62,9 +63,12 @@ class TestAnalyCli(unittest.TestCase):
             def boom(*_a, **_k):
                 raise AssertionError("opencode must not run by default")
 
+            buf = io.StringIO()
             with mock.patch("agent_sidecar.opencode_assist.run_opencode_assist", boom):
-                code = main(["analy", "--run-dir", str(run_dir)])
+                with mock.patch("sys.stdout", buf):
+                    code = main(["analy", "--run-dir", str(run_dir)])
             self.assertEqual(code, 0)
+            self.assertIn("analy pack=", buf.getvalue())
             self.assertTrue((run_dir / "assist" / "analysis.json").is_file())
             note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
             self.assertEqual(note["suspected_reason"], "mpi_abort")
