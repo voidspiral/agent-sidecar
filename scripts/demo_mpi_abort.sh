@@ -42,8 +42,8 @@ export PYTHONPATH='$PYTHONPATH'
 export PYTHONUNBUFFERED=1
 export AGENT_VERBOSE=1
 export AGENT_OPENCODE_FINAL_TIMEOUT='$AGENT_OPENCODE_FINAL_TIMEOUT'
-echo \"======== 1. agent srun mpi_fault_abort ========\"
-python3 -m agent_sidecar srun --agent-verbose \\
+echo \"======== 1. sidecar.sh srun mpi_fault_abort ========\"
+bash '$ROOT/scripts/sidecar.sh' srun --agent-verbose \\
   --agent-skills=proc-monitor,slurm-tap,mpi-scan,node-diag \\
   --agent-match=mpi_fault_abort \\
   --agent-output-dir '$OUT' \\
@@ -63,11 +63,10 @@ if [[ -n "${RUN}" ]]; then
   cat "$RUN/assist/analysis.json" 2>/dev/null || echo "(no analysis.json)"
   echo "---- job.json (phase-1: ask for --code, no file:line) ----"
   cat "$RUN/assist/job.json" 2>/dev/null || echo "(no job.json)"
-  echo "---- phase-1 offline analy (no --code) ----"
-  python3 -m agent_sidecar analy --run-dir "$RUN" || true
-  echo "---- phase-2 optional: authorized source (uncomment to run) ----"
-  echo "# python3 -m agent_sidecar analy --run-dir \"$RUN\" --code $ROOT/examples"
-  echo "# python3 -m agent_sidecar analy --run-dir \"$RUN\" --code $ROOT/examples --llm"
+  echo "---- phase-1 offline analy (no --code, --no-llm) ----"
+  bash "$ROOT/scripts/sidecar-analy.sh" --log "$RUN" --no-llm || true
+  echo "---- phase-2 optional: authorized source, LLM default (uncomment to run) ----"
+  echo "# bash $ROOT/scripts/sidecar-analy.sh --log \"$RUN\" --code $ROOT/examples"
   echo "---- files ----"
   find "$RUN" -type f | sort
 fi

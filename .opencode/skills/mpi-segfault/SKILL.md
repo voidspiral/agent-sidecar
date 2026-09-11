@@ -39,7 +39,7 @@ This is **not** `mpi_abort` (explicit Abort), **not** launch failure
 4. **Phase 1 (no source):** If `needs_source` is true or `code_hits` is empty,
    state that source-level location was **not** done. Ask the operator to
    re-run `ask_code_cmd` (or
-   `agent analy --run-dir <run_dir> --code /path/to/src`). **Do not invent
+   `sidecar-analy.sh --log <run_dir> --code /path/to/src`). **Do not invent
    `file:line`.** List only hypothesis-level causes (空指针 / 越界 / 未初始化).
 5. **Phase 2 (authorized):** If `code_hits` is non-empty, cite
    path:lineno **only** from those hits and say they are under the

@@ -38,7 +38,7 @@ launch-fail) and **not** node OOM (`node_local`).
 4. **Phase 1 (no source):** If `needs_source` is true or `code_hits` is empty,
    state that source-level location was **not** done. Ask the operator to
    re-run `ask_code_cmd` (or
-   `agent analy --run-dir <run_dir> --code /path/to/src`). **Do not invent
+   `sidecar-analy.sh --log <run_dir> --code /path/to/src`). **Do not invent
    `file:line`.** List only hypothesis-level causes (显式 Abort / 断言 / 通信).
 5. **Phase 2 (authorized):** If `code_hits` is non-empty, cite
    path:lineno **only** from those hits and say they are under the
