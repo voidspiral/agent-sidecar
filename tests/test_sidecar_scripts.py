@@ -55,16 +55,6 @@ class TestSidecarScripts(unittest.TestCase):
             self.assertIn("sidecar.sh srun", text, name)
             self.assertIn("sidecar-analy.sh --log", text, name)
 
-    def test_cluster_notes_use_native_srun_tail(self) -> None:
-        notes = ROOT / "测试.md"
-        self.assertTrue(notes.is_file(), notes)
-        text = notes.read_text(encoding="utf-8")
-        self.assertIn("sidecar.sh [--agent-*] srun", text)
-        self.assertIn("sidecar.sh --agent-verbose srun -n2", text)
-        self.assertIn("sidecar.sh srun -n2", text)
-        self.assertNotIn("--agent-match=", text)
-        self.assertNotIn("srun -n2 --", text)
-
 
 if __name__ == "__main__":
     unittest.main()

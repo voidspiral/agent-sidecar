@@ -19,3 +19,4 @@ htmlcov/
 examples/mpi_io_load
 examples/mpi_fault_abort
 examples/mpi_fault_segfault
+测试.md
