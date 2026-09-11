@@ -1,12 +1,18 @@
 CC ?= mpicc
 CFLAGS ?= -O2 -Wall -Wextra
-BIN = mpi_io_load
+BIN = mpi_io_load mpi_fault_abort mpi_fault_segfault
 
 .PHONY: all clean
 
 all: $(BIN)
 
-$(BIN): mpi_io_load.c
+mpi_io_load: mpi_io_load.c
+	$(CC) $(CFLAGS) -o $@ $<
+
+mpi_fault_abort: mpi_fault_abort.c
+	$(CC) $(CFLAGS) -o $@ $<
+
+mpi_fault_segfault: mpi_fault_segfault.c
 	$(CC) $(CFLAGS) -o $@ $<
 
 clean:

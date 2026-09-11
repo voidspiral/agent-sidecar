@@ -71,8 +71,17 @@ def resolve_output_dir(options: AgentOptions, env: dict[str, str]) -> Path:
     return path
 
 
-def run_user_command(argv: list[str], *, tail_path: Path | str | None = None) -> int:
-    """Run the user argv and keep the last STDERR_TAIL_MAX bytes of combined stdio."""
+def run_user_command(
+    argv: list[str],
+    *,
+    tail_path: Path | str | None = None,
+    flush_every_bytes: int = 256,
+) -> int:
+    """Run the user argv and keep the last STDERR_TAIL_MAX bytes of combined stdio.
+
+    While the process runs, periodically flush the ring buffer to ``tail_path``
+    so abort text can appear before process exit.
+    """
     dest_raw = tail_path if tail_path is not None else os.environ.get(AGENT_STDERR_TAIL)
     dest = Path(dest_raw) if dest_raw else None
     if dest is None:
@@ -87,6 +96,13 @@ def run_user_command(argv: list[str], *, tail_path: Path | str | None = None) ->
     )
     chunks: list[str] = []
     size = 0
+    since_flush = 0
+
+    def _flush() -> None:
+        nonlocal since_flush
+        dest.write_text("".join(chunks)[-STDERR_TAIL_MAX:], encoding="utf-8")
+        since_flush = 0
+
     try:
         assert proc.stdout is not None
         for line in proc.stdout:
@@ -94,10 +110,13 @@ def run_user_command(argv: list[str], *, tail_path: Path | str | None = None) ->
             sys.stdout.flush()
             chunks.append(line)
             size += len(line)
+            since_flush += len(line)
             if size > STDERR_TAIL_MAX * 2:
                 blob = "".join(chunks)[-STDERR_TAIL_MAX:]
                 chunks = [blob]
                 size = len(blob)
+            if since_flush >= flush_every_bytes:
+                _flush()
     finally:
         if proc.stdout is not None:
             proc.stdout.close()
@@ -209,7 +228,6 @@ def wrap_srun(
     ]
     saved_os = {key: os.environ.get(key) for key in _LLM_ENV_KEYS}
     assist_env = dict(env)
-    assist_env.setdefault("AGENT_OPENCODE_FINAL_TIMEOUT", "0")
     for key in _LLM_ENV_KEYS:
         env.pop(key, None)
         os.environ.pop(key, None)
@@ -347,6 +365,24 @@ def wrap_srun(
         attempt=int(retry["attempt"]),
         extra=extra,
     )
+    if reason != "ok" or anomalies:
+        try:
+            from agent_sidecar.analysis import run_analysis
+
+            run_analysis(run_dir, use_llm=False, env=assist_env)
+        except Exception as exc:  # noqa: BLE001 — fail-soft analysis
+            errors["analysis"] = str(exc)[:500]
+            extra["collect_errors"] = errors
+            write_telemetry(
+                run_dir,
+                summary=summary,
+                anomalies=anomalies,
+                evidence_paths=evidence,
+                reason_code=reason,
+                retry_allowed=bool(retry["retry_allowed"]),
+                attempt=int(retry["attempt"]),
+                extra=extra,
+            )
     if parsed.options.profile == "job-assist":
         run_job_assist(
             run_dir,

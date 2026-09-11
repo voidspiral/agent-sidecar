@@ -20,6 +20,10 @@ class TestMpiScan(unittest.TestCase):
         self.assertEqual(scan_stderr("rank 0 MPI_Abort(comm, 1)"), "mpi_abort")
         self.assertIsNone(scan_stderr("all ranks completed"))
 
+    def test_segfault_patterns(self) -> None:
+        self.assertEqual(scan_stderr("rank 0 segfault (null deref)"), "mpi_segfault")
+        self.assertEqual(scan_stderr("*** Signal 11 ***"), "mpi_segfault")
+
     def test_plugin_emits_event(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ctx = JobContext(job_id="1", host="h1", output_dir=Path(tmp))
@@ -27,4 +31,13 @@ class TestMpiScan(unittest.TestCase):
             tool.start(ctx)
             ev = tool.events()
             self.assertEqual(ev[0].reason_code, "mpi_abort")
+            self.assertTrue(ev[0].evidence_path)
+
+    def test_plugin_emits_segfault(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = JobContext(job_id="1", host="h1", output_dir=Path(tmp))
+            tool = MpiScan(stderr_text="rank 1 segfault (null deref)\n")
+            tool.start(ctx)
+            ev = tool.events()
+            self.assertEqual(ev[0].reason_code, "mpi_segfault")
             self.assertTrue(ev[0].evidence_path)

@@ -16,3 +16,6 @@ venv/
 htmlcov/
 *.env
 **/deepseek.env
+examples/mpi_io_load
+examples/mpi_fault_abort
+examples/mpi_fault_segfault

@@ -11,9 +11,11 @@ interpret live snapshots **only when tool anomalies exist** in `events/`
 (MPI abort, SLURM failure/OOM, node-diag). Healthy CPU/RSS/IO series changes
 are not a live OpenCode trigger. When the user step ends, live OpenCode is
 cancelled. Wrap promotes `assist/live.json` to `assist/job.json` when a live
-summary exists (`suspected_reason` copied from `reason_code`). Wrap does not
-spawn a post-job OpenCode unless `AGENT_OPENCODE_FINAL_TIMEOUT` is greater
-than 0. If you are writing the final note, write `assist/job.json`.
+summary exists (`suspected_reason` copied from `reason_code`). Otherwise wrap
+runs a post-job OpenCode (budget `AGENT_OPENCODE_FINAL_TIMEOUT`, or
+`AGENT_OPENCODE_TIMEOUT` when unset). Set `AGENT_OPENCODE_FINAL_TIMEOUT=0` to
+skip the post-job model. If you are writing the final note, write
+`assist/job.json`.
 Compute-node sidecars are
 deterministic tools only (`proc-monitor`, `mpi-scan`, `slurm-tap`, `node-diag`).
 Do not scrape `/proc`. Do not start OpenCode on compute nodes. Do not call

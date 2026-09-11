@@ -14,6 +14,7 @@ from typing import Any, Callable
 
 DEFAULT_TIMEOUT = 300.0
 _POLL = 0.2
+_HEARTBEAT = 15.0
 
 Runner = Callable[[list[str], str, float, dict[str, str] | None], tuple[int, str, str]]
 
@@ -44,19 +45,37 @@ def note_summary(path: Path | str | None) -> str:
     return str(data.get("summary") or "").strip()
 
 
-def build_assist_prompt(telemetry: dict[str, Any], run_dir: Path) -> str:
-    contract = {
+def build_assist_prompt(
+    telemetry: dict[str, Any],
+    run_dir: Path,
+    *,
+    analysis: dict[str, Any] | None = None,
+) -> str:
+    contract: dict[str, Any] = {
         "summary": telemetry.get("summary") or {},
         "anomalies": telemetry.get("anomalies") or [],
         "reason_code": telemetry.get("reason_code"),
         "evidence_paths": telemetry.get("evidence_paths") or [],
         "run_dir": str(run_dir),
     }
+    if analysis is not None:
+        contract["analysis"] = analysis
+    extra = ""
+    if analysis is not None:
+        extra = (
+            "The contract includes assist/analysis.json fields under key analysis. "
+            "Trust pack fields (abort_rank, errorcode, needs_source, code_hits, ask_code_cmd). "
+            "If needs_source is true or code_hits is empty, ask the operator to re-run "
+            "agent analy --run-dir … --code /path/to/src and do NOT invent file:line cites. "
+            "If code_hits exist, cite only those authorized paths. "
+        )
     return (
         "You are job-assist for this HPC SLURM sidecar. "
         "Read only the JSON contract below. Do not scrape /proc. "
+        "Do not run bash, skills, or explore the filesystem. "
         "Do not embed series JSONL bodies. JSONL and PNG are named only via evidence_paths. "
-        f"Write {run_dir / 'assist' / 'job.json'} with host=submit, "
+        f"{extra}"
+        f"Write {run_dir / 'assist' / 'job.json'} immediately with host=submit, "
         "summary in Simplified Chinese (简体中文), 分条 as a numbered list "
         "(1. 2. 3., one finding per item, not a paragraph): interpret the contract "
         "and include concrete improvement suggestions (srun flags, NFS paths, "
@@ -173,6 +192,8 @@ def default_opencode_runner(
         start_new_session=True,
     )
     deadline = time.monotonic() + max(0.0, float(timeout))
+    started = time.monotonic()
+    next_beat = started + _HEARTBEAT
     try:
         while True:
             if cancel is not None and getattr(cancel, "is_set", lambda: False)():
@@ -184,7 +205,8 @@ def default_opencode_runner(
             rc = proc.poll()
             if rc is not None:
                 return rc, "", ""
-            remaining = deadline - time.monotonic()
+            now = time.monotonic()
+            remaining = deadline - now
             if remaining <= 0:
                 _stop_process(proc)
                 if note_summary(note_path):
@@ -193,6 +215,14 @@ def default_opencode_runner(
                     "opencode_timeout",
                     f"opencode timed out after {timeout}s",
                 )
+            if now >= next_beat:
+                elapsed = int(now - started)
+                print(
+                    f"[agent] OpenCode still running… {elapsed}s "
+                    f"(timeout {int(timeout)}s, waiting for {note_path})",
+                    flush=True,
+                )
+                next_beat = now + _HEARTBEAT
             time.sleep(min(_POLL, remaining))
     except BaseException:
         _stop_process(proc)
@@ -242,6 +272,7 @@ def run_opencode_assist(
     repo_root: Path | None = None,
     timeout: float | None = None,
     env: dict[str, str] | None = None,
+    include_analysis: bool = False,
 ) -> int:
     from agent_sidecar.telemetry import load_telemetry
 
@@ -252,7 +283,17 @@ def run_opencode_assist(
         else float(os.environ.get("AGENT_OPENCODE_TIMEOUT") or DEFAULT_TIMEOUT)
     )
     root = repo_root or default_repo_root()
-    prompt = build_assist_prompt(doc, run_dir)
+    analysis_doc: dict[str, Any] | None = None
+    if include_analysis:
+        analysis_path = Path(run_dir) / "assist" / "analysis.json"
+        if analysis_path.is_file():
+            try:
+                loaded = json.loads(analysis_path.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    analysis_doc = loaded
+            except (OSError, json.JSONDecodeError):
+                analysis_doc = None
+    prompt = build_assist_prompt(doc, run_dir, analysis=analysis_doc)
     argv = opencode_run_argv(
         root, prompt, model=os.environ.get("AGENT_OPENCODE_MODEL") or ""
     )

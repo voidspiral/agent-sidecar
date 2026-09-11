@@ -6,6 +6,8 @@ Index only. OpenCode loads each skill from `.opencode/skills/<name>/SKILL.md`.
 |-------|-------------|
 | [mpi-monitor](skills/mpi-monitor/SKILL.md) | CPU/RSS/IO JSONL under `series/`, optional PNG under `charts/`, collect via overlap supervisor |
 | [launch-fail](skills/launch-fail/SKILL.md) | `execution_error` with `pid_count=0` / missing executable / ENOENT |
+| [mpi-abort](skills/mpi-abort/SKILL.md) | `reason_code=mpi_abort` or `assist/analysis.json` pack `mpi_abort` |
+| [mpi-segfault](skills/mpi-segfault/SKILL.md) | `reason_code=mpi_segfault` or `assist/analysis.json` pack `mpi_segfault` |
 | [node-diag](skills/node-diag/SKILL.md) | `node_local` / job-scoped OOM killer / cgroup `oom_kill` / NFS hang |
 
 Standing instructions (keep in sync): [`AGENTS.md`](AGENTS.md),

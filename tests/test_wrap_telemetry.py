@@ -311,7 +311,7 @@ class TestWrapTelemetry(unittest.TestCase):
 
             code, run_dir, _plan = wrap_srun(
                 parsed,
-                env={},
+                env={"AGENT_OPENCODE_FINAL_TIMEOUT": "0"},
                 run_sidecar=lambda _a: 0,
                 run_user=run_user,
                 opencode_runner=noop_opencode,
@@ -324,3 +324,87 @@ class TestWrapTelemetry(unittest.TestCase):
             doc = load_telemetry(run_dir)
             self.assertIn("mpi_abort", [a["reason_code"] for a in doc["anomalies"]])
             self.assertEqual(doc["reason_code"], "mpi_abort")
+            self.assertTrue((run_dir / "assist" / "analysis.json").is_file())
+            analysis = json.loads(
+                (run_dir / "assist" / "analysis.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(analysis["pack"], "mpi_abort")
+
+    def test_wrap_captures_mpi_segfault_from_user_stdio(self) -> None:
+        from agent_sidecar.run import run_user_command
+
+        with tempfile.TemporaryDirectory() as tmp:
+            parsed = parse_agent_argv(
+                ["srun", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
+            )
+
+            def run_user(_argv: list[str]) -> int:
+                return run_user_command(
+                    [
+                        sys.executable,
+                        "-c",
+                        "import sys; sys.stderr.write('rank 0 segfault (null deref)\\n'); sys.exit(139)",
+                    ]
+                )
+
+            code, run_dir, _plan = wrap_srun(
+                parsed,
+                env={"AGENT_OPENCODE_FINAL_TIMEOUT": "0"},
+                run_sidecar=lambda _a: 0,
+                run_user=run_user,
+                opencode_runner=noop_opencode,
+                live_watcher=NoWatch(), live_plotter=NoPlot(),
+                tty=False,
+            )
+            self.assertEqual(code, 139)
+            tail = (run_dir / "events" / "stderr.tail").read_text(encoding="utf-8")
+            self.assertIn("segfault", tail)
+            doc = load_telemetry(run_dir)
+            self.assertIn("mpi_segfault", [a["reason_code"] for a in doc["anomalies"]])
+            self.assertEqual(doc["reason_code"], "mpi_segfault")
+            self.assertTrue((run_dir / "assist" / "analysis.json").is_file())
+            analysis = json.loads(
+                (run_dir / "assist" / "analysis.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(analysis["pack"], "mpi_segfault")
+
+    def test_stderr_tail_flushes_during_user_step(self) -> None:
+        from agent_sidecar.run import run_user_command
+
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "events" / "stderr.tail"
+            code = [
+                "import sys, time",
+                "sys.stdout.write('rank 0 called MPI_Abort(comm=MPI_COMM_WORLD, errorcode=1)\\n')",
+                "sys.stdout.flush()",
+                "time.sleep(0.4)",
+                "sys.stdout.write('after\\n')",
+                "sys.stdout.flush()",
+            ]
+            # Poll while child sleeps after first line.
+            import threading
+
+            seen = {"ok": False}
+
+            def watcher() -> None:
+                import time as _t
+
+                for _ in range(40):
+                    if dest.is_file() and "MPI_Abort" in dest.read_text(
+                        encoding="utf-8", errors="replace"
+                    ):
+                        seen["ok"] = True
+                        return
+                    _t.sleep(0.05)
+
+            t = threading.Thread(target=watcher, daemon=True)
+            t.start()
+            rc = run_user_command(
+                [sys.executable, "-c", ";".join(code)],
+                tail_path=dest,
+                flush_every_bytes=1,
+            )
+            t.join(timeout=2)
+            self.assertEqual(rc, 0)
+            self.assertTrue(seen["ok"], "stderr.tail should flush before process exit")
+            self.assertIn("MPI_Abort", dest.read_text(encoding="utf-8"))

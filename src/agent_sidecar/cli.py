@@ -1,4 +1,4 @@
-"""agent CLI: srun / sbatch / salloc / supervisor / report / serve / deploy."""
+"""agent CLI: srun / sbatch / salloc / supervisor / report / serve / analy / deploy."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ from agent_sidecar.tools.node_diag import NodeDiag
 from agent_sidecar.tools.proc_monitor import ProcMonitor
 from agent_sidecar.tools.slurm_tap import SlurmTap
 
-USAGE = "usage: agent srun|sbatch|salloc|supervisor|report|serve|deploy ..."
+USAGE = "usage: agent srun|sbatch|salloc|supervisor|report|serve|analy|deploy ..."
 
 PLUGIN_FACTORIES = {
     "proc-monitor": ProcMonitor,
@@ -260,6 +260,59 @@ def cmd_report(argv: list[str]) -> int:
     return 0
 
 
+def cmd_analy(argv: list[str]) -> int:
+    p = argparse.ArgumentParser(prog="agent analy")
+    p.add_argument("--run-dir", required=True, type=Path)
+    p.add_argument("--code", type=Path, default=None, help="optional read-only source tree")
+    p.add_argument("--llm", action="store_true", help="opt-in OpenCode after deterministic pack")
+    try:
+        ns = p.parse_args(argv)
+    except SystemExit as exc:
+        return int(exc.code) if exc.code is not None else 2
+    if not ns.run_dir.is_dir():
+        print(f"run-dir not found: {ns.run_dir}", file=sys.stderr)
+        return 2
+    from agent_sidecar.analysis import run_analysis
+    from agent_sidecar.opencode_assist import default_opencode_runner
+
+    print(
+        f"[agent] analy run_dir={ns.run_dir}"
+        + (f" code={ns.code}" if ns.code else "")
+        + (" llm=1" if ns.llm else " llm=0"),
+        flush=True,
+    )
+    if ns.llm:
+        print("[agent] analy: deterministic pack then OpenCode (may take up to AGENT_OPENCODE_TIMEOUT)", flush=True)
+    result = run_analysis(
+        ns.run_dir,
+        code_root=ns.code,
+        use_llm=bool(ns.llm),
+        opencode_runner=default_opencode_runner if ns.llm else None,
+        env=dict(os.environ),
+    )
+    analysis_path = ns.run_dir / "assist" / "analysis.json"
+    job_path = ns.run_dir / "assist" / "job.json"
+    print(f"[agent] analy pack={result.get('pack')} -> {analysis_path}", flush=True)
+    if job_path.is_file():
+        print(f"[agent] analy job-assist -> {job_path}", flush=True)
+        try:
+            note = json.loads(job_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"[agent] analy: cannot read job.json: {exc}", file=sys.stderr, flush=True)
+            return 0
+        reason = note.get("suspected_reason") or result.get("reason_code") or ""
+        summary = str(note.get("summary") or "").strip()
+        print(f"[agent] suspected_reason={reason}", flush=True)
+        if summary:
+            print("[agent] summary:", flush=True)
+            print(summary, flush=True)
+        else:
+            print("[agent] summary: (empty)", file=sys.stderr, flush=True)
+    elif ns.llm:
+        print("[agent] analy: OpenCode did not write assist/job.json", file=sys.stderr, flush=True)
+    return 0
+
+
 def cmd_deploy(argv: list[str]) -> int:
     from agent_sidecar.deploy import (
         default_shared,
@@ -337,6 +390,8 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_supervisor(argv[1:])
         if cmd == "report":
             return cmd_report(argv[1:])
+        if cmd == "analy":
+            return cmd_analy(argv[1:])
         if cmd == "serve":
             return cmd_serve(argv[1:])
         if cmd == "deploy":

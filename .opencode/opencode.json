@@ -5,5 +5,15 @@
     "job-assist": {
       "description": "Interpret JobTelemetry after wrap; write assist/job.json; never mutate SLURM"
     }
+  },
+  "permission": {
+    "question": "deny",
+    "bash": "deny",
+    "skill": "deny",
+    "webfetch": "deny",
+    "external_directory": {
+      "/shared/agent-runs/**": "allow",
+      "**/agent-runs/**": "allow"
+    }
   }
 }

@@ -41,6 +41,62 @@ def _ok(text: str = "ok interpretation"):
 
 
 class TestJobAssistProfile(unittest.TestCase):
+    def test_wrap_final_opencode_by_default(self) -> None:
+        runner = _ok("rank imbalance likely")
+        with tempfile.TemporaryDirectory() as tmp:
+            parsed = parse_agent_argv(
+                [
+                    "srun",
+                    "--agent-profile=job-assist",
+                    "--agent-output-dir",
+                    tmp,
+                    "-n",
+                    "1",
+                    "--",
+                    "true",
+                ]
+            )
+            code, run_dir, _plan = wrap_srun(
+                parsed,
+                env=dict(SECRET_ENV),
+                run_sidecar=lambda _a: 0,
+                run_user=lambda _a: 0,
+                opencode_runner=runner,
+                live_plotter=NoPlot(),
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(len(runner.calls), 1)
+            self.assertTrue((run_dir / "assist" / "job.json").is_file())
+            self.assertEqual(runner.calls[0]["argv"][:3], ["opencode", "run", "--dir"])
+            self.assertIn("--auto", runner.calls[0]["argv"])
+
+    def test_wrap_skips_final_opencode_when_timeout_zero(self) -> None:
+        runner = _ok("should not run")
+        with tempfile.TemporaryDirectory() as tmp:
+            parsed = parse_agent_argv(
+                [
+                    "srun",
+                    "--agent-profile=job-assist",
+                    "--agent-output-dir",
+                    tmp,
+                    "-n",
+                    "1",
+                    "--",
+                    "true",
+                ]
+            )
+            code, run_dir, _plan = wrap_srun(
+                parsed,
+                env={**SECRET_ENV, "AGENT_OPENCODE_FINAL_TIMEOUT": "0"},
+                run_sidecar=lambda _a: 0,
+                run_user=lambda _a: 0,
+                opencode_runner=runner,
+                live_plotter=NoPlot(),
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(len(runner.calls), 0)
+            self.assertFalse((run_dir / "assist" / "job.json").is_file())
+
     def test_wrap_final_opencode_when_timeout_set(self) -> None:
         runner = _ok("rank imbalance likely")
         with tempfile.TemporaryDirectory() as tmp:
@@ -107,9 +163,9 @@ class TestJobAssistProfile(unittest.TestCase):
                 )
                 chat.assert_not_called()
             self.assertEqual(code, 0)
-            self.assertEqual(len(runner.calls), 0)
+            self.assertEqual(len(runner.calls), 1)
             self.assertTrue((run_dir / "telemetry.json").is_file())
-            self.assertFalse((run_dir / "assist" / "job.json").is_file())
+            self.assertTrue((run_dir / "assist" / "job.json").is_file())
 
     def test_tools_only_zero_calls(self) -> None:
         runner = _ok()
@@ -160,8 +216,9 @@ class TestJobAssistProfile(unittest.TestCase):
             self.assertEqual(parsed.options.profile, "job-assist")
             self.assertTrue(seen)
             self.assertIn("--overlap", seen[0])
-            self.assertEqual(len(runner.calls), 0)
+            self.assertEqual(len(runner.calls), 1)
             self.assertTrue((run_dir / "telemetry.json").is_file())
+            self.assertTrue((run_dir / "assist" / "job.json").is_file())
 
     def test_non_tty_starts_watcher_before_user(self) -> None:
         runner = _ok()
