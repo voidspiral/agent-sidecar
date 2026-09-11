@@ -16,9 +16,9 @@
 
 ## 4. Cluster acceptance
 
-- [ ] 4.1 Rsync the tree to `mn:/shared/agent-sidecar` and compile examples with `CC=mpicc make`. Verify binaries exist on `/shared/agent-sidecar/examples/`
-- [ ] 4.2 Run the three cases from the updated `测试.md` on `cn1,cn3` (`unset AGENT_OPENCODE_FINAL_TIMEOUT`). Verify healthy `reason=ok` + Chinese `assist/job.json`; abort `mpi_abort` + `--code` hits `mpi_fault_abort.c`; segfault `mpi_segfault` + hit includes `:51`
+- [x] 4.1 Rsync the tree to `mn:/shared/agent-sidecar` and compile examples with `CC=mpicc make`. Verify binaries exist on `/shared/agent-sidecar/examples/`
+- [x] 4.2 Run the three cases from the updated `测试.md` on `cn1,cn3` (`unset AGENT_OPENCODE_FINAL_TIMEOUT`). Verify healthy `reason=ok` + Chinese `assist/job.json`; abort `mpi_abort` + `--code` hits `mpi_fault_abort.c`; segfault `mpi_segfault` + hit includes `:51`
 
 ## 5. Out of phase 1
 
-- [ ] 5.1 SPANK, automatic remediate, and ClusterHelm adapter remain out of this change; verify they are listed only under Non-goals (no implementation tasks)
+- [x] 5.1 SPANK, automatic remediate, and ClusterHelm adapter remain out of this change; verify they are listed only under Non-goals (no implementation tasks)
