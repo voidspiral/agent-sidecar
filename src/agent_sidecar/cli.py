@@ -260,38 +260,60 @@ def cmd_report(argv: list[str]) -> int:
     return 0
 
 
+def _resolve_analy_run_dir(log: Path | None, run_dir: Path | None) -> Path | None:
+    if log is not None and run_dir is not None:
+        try:
+            same = log.resolve() == run_dir.resolve()
+        except OSError:
+            same = log == run_dir
+        if not same:
+            print("conflicting --log and --run-dir", file=sys.stderr)
+            return None
+    chosen = log or run_dir
+    if chosen is None:
+        print("usage: agent analy --log DIR (or --run-dir DIR)", file=sys.stderr)
+        return None
+    return chosen
+
+
 def cmd_analy(argv: list[str]) -> int:
     p = argparse.ArgumentParser(prog="agent analy")
-    p.add_argument("--run-dir", required=True, type=Path)
+    p.add_argument("--run-dir", type=Path, default=None, help="sidecar run directory")
+    p.add_argument("--log", type=Path, default=None, help="alias of --run-dir")
     p.add_argument("--code", type=Path, default=None, help="optional read-only source tree")
-    p.add_argument("--llm", action="store_true", help="opt-in OpenCode after deterministic pack")
+    p.add_argument("--llm", action="store_true", help="invoke OpenCode after the pack (default)")
+    p.add_argument("--no-llm", action="store_true", help="deterministic pack only")
     try:
         ns = p.parse_args(argv)
     except SystemExit as exc:
         return int(exc.code) if exc.code is not None else 2
-    if not ns.run_dir.is_dir():
-        print(f"run-dir not found: {ns.run_dir}", file=sys.stderr)
+    run_dir = _resolve_analy_run_dir(ns.log, ns.run_dir)
+    if run_dir is None:
+        return 2
+    if not run_dir.is_dir():
+        print(f"run-dir not found: {run_dir}", file=sys.stderr)
         return 2
     from agent_sidecar.analysis import run_analysis
     from agent_sidecar.opencode_assist import default_opencode_runner
 
+    use_llm = not bool(ns.no_llm)
     print(
-        f"[agent] analy run_dir={ns.run_dir}"
+        f"[agent] analy run_dir={run_dir}"
         + (f" code={ns.code}" if ns.code else "")
-        + (" llm=1" if ns.llm else " llm=0"),
+        + (" llm=1" if use_llm else " llm=0"),
         flush=True,
     )
-    if ns.llm:
+    if use_llm:
         print("[agent] analy: deterministic pack then OpenCode (may take up to AGENT_OPENCODE_TIMEOUT)", flush=True)
     result = run_analysis(
-        ns.run_dir,
+        run_dir,
         code_root=ns.code,
-        use_llm=bool(ns.llm),
-        opencode_runner=default_opencode_runner if ns.llm else None,
+        use_llm=use_llm,
+        opencode_runner=default_opencode_runner if use_llm else None,
         env=dict(os.environ),
     )
-    analysis_path = ns.run_dir / "assist" / "analysis.json"
-    job_path = ns.run_dir / "assist" / "job.json"
+    analysis_path = run_dir / "assist" / "analysis.json"
+    job_path = run_dir / "assist" / "job.json"
     print(f"[agent] analy pack={result.get('pack')} -> {analysis_path}", flush=True)
     if job_path.is_file():
         print(f"[agent] analy job-assist -> {job_path}", flush=True)
@@ -308,7 +330,7 @@ def cmd_analy(argv: list[str]) -> int:
             print(summary, flush=True)
         else:
             print("[agent] summary: (empty)", file=sys.stderr, flush=True)
-    elif ns.llm:
+    elif use_llm:
         print("[agent] analy: OpenCode did not write assist/job.json", file=sys.stderr, flush=True)
     return 0
 

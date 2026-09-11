@@ -154,7 +154,7 @@ def run_analysis(
             f"1. 结论：reason_code={reason}（pack={pack}）\n"
             "2. 采集：见 telemetry summary\n"
             "3. 异常：尚无专用 pack，请查看 events/ 与 anomalies\n"
-            "4. 建议：保留 run_dir 并用 agent analy --run-dir 复查"
+            "4. 建议：保留 run_dir 并用 sidecar-analy.sh --log 复查"
         )
 
     _write_analysis(run_dir, analysis)

@@ -51,9 +51,12 @@ def _seed(run_dir: Path) -> None:
 
 
 class TestAnalyCli(unittest.TestCase):
-    def test_requires_run_dir(self) -> None:
-        code = main(["analy"])
+    def test_requires_log_or_run_dir(self) -> None:
+        buf = io.StringIO()
+        with mock.patch("sys.stderr", buf):
+            code = main(["analy"])
         self.assertNotEqual(code, 0)
+        self.assertTrue(buf.getvalue())
 
     def test_analy_writes_analysis_without_llm(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -61,12 +64,12 @@ class TestAnalyCli(unittest.TestCase):
             _seed(run_dir)
 
             def boom(*_a, **_k):
-                raise AssertionError("opencode must not run by default")
+                raise AssertionError("opencode must not run with --no-llm")
 
             buf = io.StringIO()
             with mock.patch("agent_sidecar.opencode_assist.run_opencode_assist", boom):
                 with mock.patch("sys.stdout", buf):
-                    code = main(["analy", "--run-dir", str(run_dir)])
+                    code = main(["analy", "--run-dir", str(run_dir), "--no-llm"])
             self.assertEqual(code, 0)
             out = buf.getvalue()
             self.assertIn("analy pack=", out)
@@ -77,6 +80,51 @@ class TestAnalyCli(unittest.TestCase):
             note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
             self.assertEqual(note["suspected_reason"], "mpi_abort")
             self.assertIn(note["summary"].splitlines()[0], out)
+
+    def test_analy_log_alias_without_llm(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            _seed(run_dir)
+
+            def boom(*_a, **_k):
+                raise AssertionError("opencode must not run with --no-llm")
+
+            with mock.patch("agent_sidecar.opencode_assist.run_opencode_assist", boom):
+                code = main(["analy", "--log", str(run_dir), "--no-llm"])
+            self.assertEqual(code, 0)
+            self.assertTrue((run_dir / "assist" / "analysis.json").is_file())
+
+    def test_analy_default_invokes_opencode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            _seed(run_dir)
+            called = {"n": 0}
+
+            def fake_assist(*_a, **_k):
+                called["n"] += 1
+                return 0
+
+            buf = io.StringIO()
+            with mock.patch(
+                "agent_sidecar.opencode_assist.run_opencode_assist", fake_assist
+            ):
+                with mock.patch("sys.stdout", buf):
+                    code = main(["analy", "--log", str(run_dir)])
+            self.assertEqual(code, 0)
+            self.assertEqual(called["n"], 1)
+            self.assertIn("llm=1", buf.getvalue())
+
+    def test_analy_conflicting_log_and_run_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            a = Path(tmp) / "a"
+            b = Path(tmp) / "b"
+            a.mkdir()
+            b.mkdir()
+            buf = io.StringIO()
+            with mock.patch("sys.stderr", buf):
+                code = main(["analy", "--log", str(a), "--run-dir", str(b), "--no-llm"])
+            self.assertNotEqual(code, 0)
+            self.assertTrue(buf.getvalue())
 
     def test_analy_llm_uses_injected_runner_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

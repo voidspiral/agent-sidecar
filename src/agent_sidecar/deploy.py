@@ -108,6 +108,8 @@ def format_plan(plan: DeployPlan, *, dry_run: bool) -> str:
             f"mpi-mon : {plan.mpi_src}  ->  {plan.dest_mpi}",
             f"AGENT_MPI_MONITOR_SRC={plan.agent_mpi_monitor_src}",
             f"PYTHONPATH={plan.pythonpath}",
+            f"wrap    : {plan.dest_sidecar}/scripts/sidecar.sh srun ...",
+            f"analy   : {plan.dest_sidecar}/scripts/sidecar-analy.sh --log <run_dir> --code /path/to/src",
             "",
         ]
     )
@@ -140,6 +142,9 @@ def _import_check(plan: DeployPlan, stdout: TextIO) -> int:
     stdout.write(
         "\nagent srun injects PYTHONPATH as "
         "{sidecar}/src:{AGENT_MPI_MONITOR_SRC:-/shared/mpi-monitor/src}\n"
+        f"{plan.dest_sidecar}/scripts/sidecar.sh srun ...\n"
+        f"{plan.dest_sidecar}/scripts/sidecar-analy.sh --log <run_dir> "
+        "--code /path/to/src\n"
     )
     return 0
 

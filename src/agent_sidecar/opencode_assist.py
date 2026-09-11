@@ -66,7 +66,7 @@ def build_assist_prompt(
             "The contract includes assist/analysis.json fields under key analysis. "
             "Trust pack fields (abort_rank, errorcode, needs_source, code_hits, ask_code_cmd). "
             "If needs_source is true or code_hits is empty, ask the operator to re-run "
-            "agent analy --run-dir … --code /path/to/src and do NOT invent file:line cites. "
+            "sidecar-analy.sh --log … --code /path/to/src and do NOT invent file:line cites. "
             "If code_hits exist, cite only those authorized paths. "
         )
     return (

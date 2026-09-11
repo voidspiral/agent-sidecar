@@ -105,9 +105,8 @@ def build_mpi_segfault_analysis(
         "suggestions": [
             "检查 fault_rank 对应源码中的空指针 / 越界访问",
             "确认该 rank 是否在通信完成后本地崩溃（非 MPI_Abort）",
-            "用相同 --agent-match 复现：agent srun ... -- /path/to/mpi_fault_segfault",
-            f"尚未授权源码时请执行：{ask_cmd}",
-            f"需要模型解读时可再加 --llm：{ask_cmd} --llm",
+            "用相同 sidecar.sh srun 复现：sidecar.sh srun … /path/to/mpi_fault_segfault",
+            f"尚未授权源码时请执行（默认 LLM）：{ask_cmd}",
         ],
     }
 
@@ -120,7 +119,7 @@ def chinese_summary(analysis: dict[str, Any]) -> str:
     sig_s = str(signal) if signal is not None else "未解析"
     ask = str(
         analysis.get("ask_code_cmd")
-        or "python3 -m agent_sidecar analy --run-dir <run_dir> --code /path/to/src"
+        or "sidecar-analy.sh --log <run_dir> --code /path/to/src"
     )
     items = [
         f"1. 结论：检测到 MPI 段错误（reason_code=mpi_segfault），"
@@ -138,7 +137,7 @@ def chinese_summary(analysis: dict[str, Any]) -> str:
         loc = hits[0]
         items.append(
             "4. 建议：核对 fault rank 附近的指针与数组边界；"
-            "用相同 --agent-match 在共享路径复现"
+            "用相同 sidecar.sh srun 在共享路径复现"
         )
         items.append(
             "5. 源码命中（用户授权路径）："
@@ -147,7 +146,7 @@ def chinese_summary(analysis: dict[str, Any]) -> str:
     else:
         items.append(
             "4. 建议：尚未做源码级定位。请提供应用源码目录后执行："
-            f"`{ask}`；需要模型解读时可再加 `--llm`：`{ask} --llm`；不要臆造 file:line"
+            f"`{ask}`（默认使用 LLM）；不要臆造 file:line"
         )
     return "\n".join(items)
 

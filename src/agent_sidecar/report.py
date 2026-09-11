@@ -97,8 +97,13 @@ def format_run_report(run_dir: Path) -> str:
             f"hosts: {summary.get('host_count', '')}    "
             f"pids: {summary.get('pid_count', '')}"
         ),
-        "",
     ]
+    reason = str(doc.get("reason_code") or "")
+    if reason and reason != "ok":
+        lines.append(
+            f"analy: sidecar-analy.sh --log {run_dir} --code /path/to/src"
+        )
+    lines.append("")
     note = _job_assist_summary(run_dir)
     if note:
         lines.extend(note.splitlines())

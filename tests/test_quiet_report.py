@@ -108,9 +108,28 @@ class TestQuietReport(unittest.TestCase):
             self.assertNotIn("charts/cn1_pid1_cpu_pct.png", text)
             self.assertNotIn("collect_errors", text)
             self.assertNotIn("host_count:", text)
+            self.assertNotIn("sidecar-analy.sh", text)
             path = write_run_report(run_dir)
             self.assertEqual(path, run_dir / "report.txt")
             self.assertTrue(path.is_file())
+
+    def test_format_run_report_non_ok_suggests_sidecar_analy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            self._seed_run(
+                run_dir,
+                reason_code="mpi_abort",
+                summary={
+                    "host_count": 1,
+                    "pid_count": 1,
+                    "exit_code": 1,
+                },
+            )
+            text = format_run_report(run_dir)
+            self.assertIn("sidecar-analy.sh", text)
+            self.assertIn("--log", text)
+            self.assertIn(str(run_dir), text)
+            self.assertIn("--code", text)
 
     def test_format_run_report_omits_empty_errors(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

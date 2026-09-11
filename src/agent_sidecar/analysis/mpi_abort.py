@@ -17,10 +17,7 @@ SOURCE_LINE_CITE_RE = re.compile(r"\.\w+:\d+")
 
 
 def ask_code_command(run_dir: Path) -> str:
-    return (
-        f"python3 -m agent_sidecar analy --run-dir {run_dir} "
-        "--code /path/to/src"
-    )
+    return f"sidecar-analy.sh --log {run_dir} --code /path/to/src"
 
 
 def _read_stderr(run_dir: Path) -> str:
@@ -117,9 +114,8 @@ def build_mpi_abort_analysis(
         "suggestions": [
             "检查 abort_rank 对应源码中的 MPI_Abort 调用与 errorcode",
             "确认该 rank 是否在通信/IO/断言失败路径上",
-            "用相同 --agent-match 复现：agent srun ... -- /path/to/mpi_fault_abort",
-            f"尚未授权源码时请执行：{ask_cmd}",
-            f"需要模型解读时可再加 --llm：{ask_cmd} --llm",
+            "用相同 sidecar.sh srun 复现：sidecar.sh srun … /path/to/mpi_fault_abort",
+            f"尚未授权源码时请执行（默认 LLM）：{ask_cmd}",
         ],
     }
 
@@ -130,7 +126,10 @@ def chinese_summary(analysis: dict[str, Any]) -> str:
     series = analysis.get("series") or {}
     rank_s = str(rank) if rank is not None else "未解析"
     err_s = str(err) if err is not None else "未解析"
-    ask = str(analysis.get("ask_code_cmd") or "python3 -m agent_sidecar analy --run-dir <run_dir> --code /path/to/src")
+    ask = str(
+        analysis.get("ask_code_cmd")
+        or "sidecar-analy.sh --log <run_dir> --code /path/to/src"
+    )
     items = [
         f"1. 结论：检测到 MPI_Abort（reason_code=mpi_abort），abort_rank={rank_s}，errorcode={err_s}",
         (
@@ -145,7 +144,7 @@ def chinese_summary(analysis: dict[str, Any]) -> str:
     if hits:
         loc = hits[0]
         items.append(
-            "4. 建议：核对 abort rank 的错误路径；用相同 --agent-match 在共享路径复现"
+            "4. 建议：核对 abort rank 的错误路径；用相同 sidecar.sh srun 在共享路径复现"
         )
         items.append(
             "5. 源码命中（用户授权路径）："
@@ -154,6 +153,6 @@ def chinese_summary(analysis: dict[str, Any]) -> str:
     else:
         items.append(
             "4. 建议：尚未做源码级定位。请提供应用源码目录后执行："
-            f"`{ask}`；需要模型解读时可再加 `--llm`：`{ask} --llm`；不要臆造 file:line"
+            f"`{ask}`（默认使用 LLM）；不要臆造 file:line"
         )
     return "\n".join(items)

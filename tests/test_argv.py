@@ -9,7 +9,7 @@ sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "src"))
 
 import unittest
 
-from agent_sidecar.argv import parse_agent_argv
+from agent_sidecar.argv import AgentParseError, parse_agent_argv
 
 
 class TestArgv(unittest.TestCase):
@@ -112,3 +112,46 @@ class TestArgv(unittest.TestCase):
         self.assertEqual(parsed.options.match, "mpi_io_load")
         self.assertEqual(parsed.options.interval, 0.5)
         self.assertEqual(parsed.passthrough, ["-n", "1", "--", "python3", "app.py"])
+
+    def test_leading_agent_verbose_before_srun_no_dashdash(self) -> None:
+        parsed = parse_agent_argv(
+            [
+                "--agent-verbose",
+                "srun",
+                "-n",
+                "2",
+                "/abs/mpi_io_load",
+                "15",
+                "/shared/mpi-io",
+                "0",
+            ]
+        )
+        self.assertEqual(parsed.command, "srun")
+        self.assertTrue(parsed.options.verbose)
+        self.assertEqual(
+            parsed.passthrough,
+            ["-n", "2", "/abs/mpi_io_load", "15", "/shared/mpi-io", "0"],
+        )
+        self.assertNotIn("--", parsed.passthrough)
+        self.assertNotIn("--agent-verbose", parsed.passthrough)
+
+    def test_leading_tools_only_before_srun(self) -> None:
+        parsed = parse_agent_argv(
+            ["--agent-profile=tools-only", "srun", "-n", "1", "./app"]
+        )
+        self.assertEqual(parsed.command, "srun")
+        self.assertEqual(parsed.options.profile, "tools-only")
+        self.assertEqual(parsed.passthrough, ["-n", "1", "./app"])
+
+    def test_unknown_leading_agent_flag_fails_closed(self) -> None:
+        with self.assertRaises(AgentParseError) as ctx:
+            parse_agent_argv(["--agent-nope", "srun", "-n", "1", "hostname"])
+        self.assertEqual(ctx.exception.exit_code, 2)
+
+    def test_operator_dashdash_still_forwarded(self) -> None:
+        parsed = parse_agent_argv(
+            ["srun", "-n", "1", "--", "python3", "-c", "print(1)"]
+        )
+        self.assertEqual(
+            parsed.passthrough, ["-n", "1", "--", "python3", "-c", "print(1)"]
+        )

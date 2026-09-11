@@ -126,6 +126,8 @@ class TestRunDeploy(unittest.TestCase):
             self.assertIn(str(shared / "mpi-monitor"), text)
             self.assertIn("AGENT_MPI_MONITOR_SRC=", text)
             self.assertIn("/mpi-monitor/src", text)
+            self.assertIn("scripts/sidecar.sh", text)
+            self.assertIn("scripts/sidecar-analy.sh", text)
 
     def test_copies_both_trees_and_prints_pythonpath(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
