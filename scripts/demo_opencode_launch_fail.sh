@@ -30,10 +30,10 @@ export PYTHONPATH='$PYTHONPATH'
 export PYTHONUNBUFFERED=1
 export AGENT_VERBOSE=1
 echo \"======== 1. agent srun missing binary ========\"
-python3 -m agent_sidecar srun --agent-verbose \\
+python3 -m agent_sidecar --agent-verbose \\
   --agent-skills=proc-monitor,slurm-tap,mpi-scan,node-diag \\
   --agent-output-dir '$OUT' \\
-  -n3 -l -- \\
+  srun -n3 -l \\
   '$MISSING' || true
 "
 

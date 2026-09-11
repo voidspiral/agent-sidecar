@@ -62,10 +62,10 @@ echo \"======== 2b. NFS visible on ranks ========\"
 srun -N3 -n3 -l bash -c 'hostname -s; df -h $SHARED; ls -l $BIN; test -x $BIN'
 echo
 echo \"======== 2c. agent srun job-assist + mpi_io_load ${SECONDS_IO}s IO + ${SECONDS_CPU}s CPU on $WORK ========\"
-python3 -m agent_sidecar srun --agent-verbose \\
+python3 -m agent_sidecar --agent-verbose \\
   --agent-skills=proc-monitor,slurm-tap,mpi-scan,node-diag \\
   --agent-output-dir '$OUT' \\
-  -n3 -l -- \\
+  srun -n3 -l \\
   $BIN ${SECONDS_IO} $WORK ${SECONDS_CPU}
 echo
 echo \"======== 2d. salloc ending ========\"

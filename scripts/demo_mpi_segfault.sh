@@ -43,11 +43,10 @@ export PYTHONUNBUFFERED=1
 export AGENT_VERBOSE=1
 export AGENT_OPENCODE_FINAL_TIMEOUT='$AGENT_OPENCODE_FINAL_TIMEOUT'
 echo \"======== 1. sidecar.sh srun mpi_fault_segfault ========\"
-bash '$ROOT/scripts/sidecar.sh' srun --agent-verbose \\
+bash '$ROOT/scripts/sidecar.sh' --agent-verbose \\
   --agent-skills=proc-monitor,slurm-tap,mpi-scan,node-diag \\
-  --agent-match=mpi_fault_segfault \\
   --agent-output-dir '$OUT' \\
-  -n3 -l -- \\
+  srun -n3 -l \\
   $BIN $WORK_S $FAULT_RANK || true
 "
 

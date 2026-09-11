@@ -114,7 +114,7 @@ def build_mpi_abort_analysis(
         "suggestions": [
             "检查 abort_rank 对应源码中的 MPI_Abort 调用与 errorcode",
             "确认该 rank 是否在通信/IO/断言失败路径上",
-            "用相同 --agent-match 复现：sidecar.sh srun ... -- /path/to/mpi_fault_abort",
+            "用相同 sidecar.sh srun 复现：sidecar.sh srun … /path/to/mpi_fault_abort",
             f"尚未授权源码时请执行（默认 LLM）：{ask_cmd}",
         ],
     }
@@ -144,7 +144,7 @@ def chinese_summary(analysis: dict[str, Any]) -> str:
     if hits:
         loc = hits[0]
         items.append(
-            "4. 建议：核对 abort rank 的错误路径；用相同 --agent-match 在共享路径复现"
+            "4. 建议：核对 abort rank 的错误路径；用相同 sidecar.sh srun 在共享路径复现"
         )
         items.append(
             "5. 源码命中（用户授权路径）："

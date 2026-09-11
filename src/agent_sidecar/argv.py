@@ -74,14 +74,49 @@ def _flag_name(token: str) -> str | None:
     return name
 
 
+def _take_agent_flag(tokens: list[str], i: int, options: AgentOptions) -> int:
+    tok = tokens[i]
+    name = _flag_name(tok)
+    if name is None or not name.startswith("agent-"):
+        return i
+    if name not in KNOWN_AGENT_FLAGS:
+        raise AgentParseError(f"unrecognized agent flag: --{name}")
+    if "=" in tok:
+        _assign(options, name, tok.split("=", 1)[1], present=True)
+        return i + 1
+    if name in BOOLEAN_AGENT_FLAGS:
+        _assign(options, name, "1", present=True)
+        return i + 1
+    if i + 1 >= len(tokens):
+        raise AgentParseError(f"missing value for --{name}")
+    _assign(options, name, tokens[i + 1], present=True)
+    return i + 2
+
+
 def parse_agent_argv(argv: Sequence[str]) -> ParsedArgv:
     if not argv:
-        raise AgentParseError("usage: agent srun|sbatch|salloc|supervisor|report|serve ...")
-    command = argv[0]
+        raise AgentParseError(
+            "usage: agent [--agent-*] srun|sbatch|salloc|supervisor|report|serve ..."
+        )
     options = AgentOptions()
-    passthrough: list[str] = []
-    tokens = list(argv[1:])
+    tokens = list(argv)
     i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+        if tok == "--":
+            i += 1
+            break
+        name = _flag_name(tok)
+        if name is None or not name.startswith("agent-"):
+            break
+        i = _take_agent_flag(tokens, i, options)
+    if i >= len(tokens):
+        raise AgentParseError(
+            "usage: agent [--agent-*] srun|sbatch|salloc|supervisor|report|serve ..."
+        )
+    command = tokens[i]
+    i += 1
+    passthrough: list[str] = []
     while i < len(tokens):
         tok = tokens[i]
         if tok == "--":
@@ -91,21 +126,7 @@ def parse_agent_argv(argv: Sequence[str]) -> ParsedArgv:
         if name is None or not name.startswith("agent-"):
             passthrough.extend(tokens[i:])
             break
-        if name not in KNOWN_AGENT_FLAGS:
-            raise AgentParseError(f"unrecognized agent flag: --{name}")
-        if "=" in tok:
-            value = tok.split("=", 1)[1]
-            _assign(options, name, value, present=True)
-            i += 1
-            continue
-        if name in BOOLEAN_AGENT_FLAGS:
-            _assign(options, name, "1", present=True)
-            i += 1
-            continue
-        if i + 1 >= len(tokens):
-            raise AgentParseError(f"missing value for --{name}")
-        _assign(options, name, tokens[i + 1], present=True)
-        i += 2
+        i = _take_agent_flag(tokens, i, options)
     return ParsedArgv(command=command, options=options, passthrough=passthrough)
 
 

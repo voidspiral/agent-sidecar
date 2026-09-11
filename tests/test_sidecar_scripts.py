@@ -32,6 +32,11 @@ class TestSidecarScripts(unittest.TestCase):
         self.assertNotIn("AGENT_ENTRY=sidecar", wrap)
         self.assertIn("exec python3 -m agent_sidecar", wrap)
 
+    def test_sidecar_sh_usage_puts_agent_flags_before_srun(self) -> None:
+        wrap = (ROOT / "scripts" / "sidecar.sh").read_text(encoding="utf-8")
+        self.assertIn("sidecar.sh [--agent-*] srun", wrap)
+        self.assertNotIn("srun [ --agent-* ]", wrap)
+
     def test_sidecar_sh_omit_profile_is_job_assist(self) -> None:
         parsed = parse_agent_argv(["srun", "-n", "1", "--", "./app"])
         apply_profile_defaults(parsed.options, env={})
@@ -49,6 +54,16 @@ class TestSidecarScripts(unittest.TestCase):
             text = (ROOT / name).read_text(encoding="utf-8")
             self.assertIn("sidecar.sh srun", text, name)
             self.assertIn("sidecar-analy.sh --log", text, name)
+
+    def test_cluster_notes_use_native_srun_tail(self) -> None:
+        notes = ROOT / "测试.md"
+        self.assertTrue(notes.is_file(), notes)
+        text = notes.read_text(encoding="utf-8")
+        self.assertIn("sidecar.sh [--agent-*] srun", text)
+        self.assertIn("sidecar.sh --agent-verbose srun -n2", text)
+        self.assertIn("sidecar.sh srun -n2", text)
+        self.assertNotIn("--agent-match=", text)
+        self.assertNotIn("srun -n2 --", text)
 
 
 if __name__ == "__main__":

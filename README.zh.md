@@ -23,22 +23,25 @@ run 目录。不要写死 `/home/<user>/...`。
 登录节点两条入口（脚本会设置 `PYTHONPATH`，不必先 `pip install`）：
 
 ```bash
-bash /shared/agent-sidecar/scripts/sidecar.sh srun -N 2 -n 4 -- ./app
+bash /shared/agent-sidecar/scripts/sidecar.sh srun -N 2 -n 4 ./app
+bash /shared/agent-sidecar/scripts/sidecar.sh --agent-verbose srun -N 2 -n 4 ./app
 bash /shared/agent-sidecar/scripts/sidecar-analy.sh --log /shared/agent-runs/<run_id> --code /path/to/src
 ```
 
 `sidecar.sh` 包装用户 `srun`：节点工具采集，并在提交端用 OpenCode 解读这些
-产物（与 `agent srun` 默认 `job-assist` 相同）。`--agent-profile=tools-only`
-关闭伴随启动的模型。`sidecar-analy.sh` 是事后 **授权源码** 再分析：`--log`
-为 run 目录，`--code` 为允许引用的源码树。`--no-llm` 只跑确定性 pack。
-模块形式 `python3 -m agent_sidecar …` 仍可用。
+产物（与 `agent srun` 默认 `job-assist` 相同）。sidecar 开关（`--agent-*`）
+写在 **`srun` 之前**。用户命令不是选项形态时不必 `--`。
+`--agent-profile=tools-only` 关闭伴随启动的模型。`sidecar-analy.sh` 是事后
+**授权源码** 再分析：`--log` 为 run 目录，`--code` 为允许引用的源码树。
+`--no-llm` 只跑确定性 pack。模块形式 `python3 -m agent_sidecar …` 仍可用。
 
 ## 包装作业
 
-`--agent-*` 由本 CLI 消费，**不会**转发给 SLURM。
+`--agent-*` 由本 CLI 消费，**不会**转发给 SLURM。写在 `sidecar.sh`（或
+`python3 -m agent_sidecar`）上，位于 **`srun` 之前**。
 
 ```bash
-agent srun --agent-output-dir ./runs -N 2 -n 4 -- ./app
+sidecar.sh --agent-output-dir ./runs srun -N 2 -n 4 ./app
 ```
 
 默认 `--agent-profile` 为 `job-assist`（节点工具 + 提交端 OpenCode）。
@@ -67,7 +70,7 @@ live 解读（`opencode run --dir <本仓库>`），不再 `POST /chat/completio
 ```bash
 # 在 mn 上；凭据留在 OpenCode 自己的配置里，不要拷到计算节点或 git
 
-python3 -m agent_sidecar srun -N 2 -n 4 -- ./app
+python3 -m agent_sidecar srun -N 2 -n 4 ./app
 ```
 
 缺少 OpenCode 或 runner 失败写入 `collect_errors`（`opencode_missing` /
@@ -243,10 +246,10 @@ bash /shared/agent-sidecar/scripts/demo_job_assist_mpi.sh \
 
 ```bash
 salloc -N3 -n3 -w cn1,cn2,cn3 -p test
-bash /shared/agent-sidecar/scripts/sidecar.sh srun --agent-verbose \
+bash /shared/agent-sidecar/scripts/sidecar.sh --agent-verbose \
   --agent-skills=proc-monitor,node-diag \
   --agent-output-dir /shared/agent-runs \
-  -n3 -l -- hostname
+  srun -n3 -l hostname
 ```
 
 看最新 run 目录下的 `meta.json`、`telemetry.json`。默认 `job-assist` 会在 mn

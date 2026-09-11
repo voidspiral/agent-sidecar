@@ -51,10 +51,10 @@ fi
 srun -N3 -n3 -l bash -c 'tar xzf /tmp/agent-sidecar-src.tgz -C /tmp/agent-sidecar && ls /tmp/agent-sidecar/src/agent_sidecar/__init__.py && hostname -s'
 echo
 echo \"======== 2d. agent srun (sidecar overlap + user step) ========\"
-python3 -m agent_sidecar srun --agent-verbose --agent-profile=tools-only \
+python3 -m agent_sidecar --agent-verbose --agent-profile=tools-only \
   --agent-skills=proc-monitor,node-diag \
   --agent-output-dir '$OUT' \
-  -n3 -l -- \
+  srun -n3 -l -- \
   bash -c 'echo HOST=\$(hostname -s) PROC=\$SLURM_PROCID NODEID=\$SLURM_NODEID JOB=\$SLURM_JOB_ID PID=\$\$ PPID=\$PPID; echo --- processes on \$(hostname -s) ---; ps -eo pid,ppid,user,comm,args | grep -E \"agent_sidecar|srun|slurmstepd\" | grep -v grep; sleep 4'
 echo
 echo \"======== 2e. salloc ending ========\"

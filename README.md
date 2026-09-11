@@ -23,13 +23,16 @@ or a relative run directory. Do not hardcode `/home/<user>/...`.
 Without `pip install`, use the login-host scripts (they set `PYTHONPATH`):
 
 ```bash
-bash /shared/agent-sidecar/scripts/sidecar.sh srun -N 2 -n 4 -- ./app
+bash /shared/agent-sidecar/scripts/sidecar.sh srun -N 2 -n 4 ./app
+bash /shared/agent-sidecar/scripts/sidecar.sh --agent-verbose srun -N 2 -n 4 ./app
 bash /shared/agent-sidecar/scripts/sidecar-analy.sh --log /shared/agent-runs/<run_id> --code /path/to/src
 ```
 
 `sidecar.sh` wraps the user `srun`, collects with node tools, and runs
 job-assist OpenCode on those artifacts (same default as `agent srun`).
-`--agent-profile=tools-only` skips the wrap-time model.
+Sidecar flags (`--agent-*`) go **before** `srun`. `--` is optional when the
+user command is not option-shaped. `--agent-profile=tools-only` skips the
+wrap-time model.
 `sidecar-analy.sh` is the later **source-authorized** pass: `--log` is the
 run directory, `--code` is the tree the operator allows the model to cite.
 Pass `--no-llm` for the deterministic pack only. The module form
@@ -38,9 +41,11 @@ Pass `--no-llm` for the deterministic pack only. The module form
 ## Wrap a job
 
 `--agent-*` flags are consumed by this CLI and are **not** forwarded to SLURM.
+Put them on `sidecar.sh` (or `python3 -m agent_sidecar`) **before** `srun`.
 
 ```bash
-agent srun -N 2 -n 4 -- ./app
+sidecar.sh srun -N 2 -n 4 ./app
+python3 -m agent_sidecar --agent-profile=tools-only srun -N 2 -n 4 ./app
 ```
 
 Default `--agent-profile` is `job-assist`. `--agent-skills` defaults to
@@ -72,7 +77,7 @@ is missing.
 ```bash
 # on mn; OpenCode credentials stay in OpenCode's own config, not this repo
 
-agent srun -N 2 -n 4 -- ./app
+agent srun -N 2 -n 4 ./app
 ```
 
 `--agent-profile=tools-only` skips OpenCode. Missing OpenCode or runner errors are recorded in `collect_errors`
