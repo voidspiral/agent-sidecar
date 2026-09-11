@@ -20,6 +20,19 @@ pip install -e ".[plot]"
 Python 3.10+. Output paths come from `--agent-output-dir`, `AGENT_JOB_DIR`,
 or a relative run directory. Do not hardcode `/home/<user>/...`.
 
+Without `pip install`, use the login-host scripts (they set `PYTHONPATH`):
+
+```bash
+bash /shared/agent-sidecar/scripts/sidecar.sh srun -N 2 -n 4 -- ./app
+bash /shared/agent-sidecar/scripts/sidecar-analy.sh --log /shared/agent-runs/<run_id> --code /path/to/src
+```
+
+`sidecar.sh` wraps the user `srun` and collects only (`tools-only` unless
+`--agent-profile` is set). `sidecar-analy.sh` re-reads that run directory
+(`--log`) and runs OpenCode by default. Pass `--no-llm` for the pack only.
+`--code` is the authorized source tree. The module form
+`python3 -m agent_sidecar …` remains available for advanced use.
+
 ## Wrap a job
 
 `--agent-*` flags are consumed by this CLI and are **not** forwarded to SLURM.
@@ -174,17 +187,18 @@ nodes. Full index: [.opencode/skills.md](.opencode/skills.md).
 | [mpi-segfault](.opencode/skills/mpi-segfault/SKILL.md) | `reason_code=mpi_segfault` or `assist/analysis.json` pack `mpi_segfault` |
 | [node-diag](.opencode/skills/node-diag/SKILL.md) | `reason_code=node_local` or `events/node-diag.txt` shows in-job OOM / cgroup `oom_kill` / NFS hang |
 
-Offline deterministic analysis (no OpenCode by default). **Two phases:**
+Offline analysis is **two phases** and defaults to OpenCode:
 (1) without `--code` — symptoms + ask for source; (2) with `--code` — cite
-authorized path hits only. A later `--llm` rehydrates `assist/analysis.json`
-from disk (new OpenCode run; no chat session memory).
+authorized path hits only. `--no-llm` keeps the deterministic pack.
+`--run-dir` is an alias of `--log`.
 
 ```bash
-# phase 1 — no source tree
-python3 -m agent_sidecar analy --run-dir /shared/agent-runs/<run_id>
-# phase 2 — operator-authorized source
-python3 -m agent_sidecar analy --run-dir DIR --code /path/to/src
-python3 -m agent_sidecar analy --run-dir DIR --code /path/to/src --llm
+# phase 1 — no source tree (LLM default)
+bash /shared/agent-sidecar/scripts/sidecar-analy.sh --log /shared/agent-runs/<run_id>
+# phase 1 deterministic only
+bash /shared/agent-sidecar/scripts/sidecar-analy.sh --log DIR --no-llm
+# phase 2 — operator-authorized source (LLM default)
+bash /shared/agent-sidecar/scripts/sidecar-analy.sh --log DIR --code /path/to/src
 ```
 
 MPI abort fixture demo (expects `reason_code=mpi_abort`, `pid_count>0`,

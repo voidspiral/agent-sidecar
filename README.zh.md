@@ -20,12 +20,17 @@ pip install -e ".[plot]"
 需要 Python 3.10+。输出目录来自 `--agent-output-dir`、`AGENT_JOB_DIR` 或相对
 run 目录。不要写死 `/home/<user>/...`。
 
-未 `pip install` 时可用模块方式：
+登录节点两条入口（脚本会设置 `PYTHONPATH`，不必先 `pip install`）：
 
 ```bash
-export PYTHONPATH=/path/to/agent-sidecar/src
-python3 -m agent_sidecar srun -- ...
+bash /shared/agent-sidecar/scripts/sidecar.sh srun -N 2 -n 4 -- ./app
+bash /shared/agent-sidecar/scripts/sidecar-analy.sh --log /shared/agent-runs/<run_id> --code /path/to/src
 ```
+
+`sidecar.sh` 包装用户 `srun`，默认只采集（`tools-only`，除非显式
+`--agent-profile`）。`sidecar-analy.sh` 读该 run 目录（`--log`），**默认开
+OpenCode**。`--no-llm` 只跑确定性 pack。`--code` 是授权源码树。模块形式
+`python3 -m agent_sidecar …` 仍可用。
 
 ## 包装作业
 
@@ -179,17 +184,17 @@ job-assist 在登录节点加载，用来解读工具产物，不在计算节点
 | [mpi-segfault](.opencode/skills/mpi-segfault/SKILL.md) | `reason_code=mpi_segfault` 或 `assist/analysis.json` 的 pack=`mpi_segfault` |
 | [node-diag](.opencode/skills/node-diag/SKILL.md) | `reason_code=node_local` 或 `events/node-diag.txt` 出现作业内 OOM / cgroup `oom_kill` / NFS hang |
 
-离线确定性分析（默认不调 OpenCode）。**两阶段：**（1）不带 `--code`：只根据
+离线分析分 **两阶段**，且**默认走 OpenCode**：（1）不带 `--code`：只根据
 产物给现象与假设，并索要源码；（2）带 `--code`：仅引用用户授权树内的命中。
-之后的 `--llm` 会从磁盘重灌 `assist/analysis.json`（新的 `opencode run`，
-不依赖上一轮聊天记忆）。
+`--no-llm` 只跑确定性 pack。`--run-dir` 是 `--log` 的别名。
 
 ```bash
-# 阶段1 — 无源码
-python3 -m agent_sidecar analy --run-dir /shared/agent-runs/<run_id>
-# 阶段2 — 用户授权源码
-python3 -m agent_sidecar analy --run-dir DIR --code /path/to/src
-python3 -m agent_sidecar analy --run-dir DIR --code /path/to/src --llm
+# 阶段1 — 无源码（默认 LLM）
+bash /shared/agent-sidecar/scripts/sidecar-analy.sh --log /shared/agent-runs/<run_id>
+# 阶段1 — 只要 pack
+bash /shared/agent-sidecar/scripts/sidecar-analy.sh --log DIR --no-llm
+# 阶段2 — 用户授权源码（默认 LLM）
+bash /shared/agent-sidecar/scripts/sidecar-analy.sh --log DIR --code /path/to/src
 ```
 
 MPI abort 故障演示（期望 `reason_code=mpi_abort`、`pid_count>0`、
@@ -217,6 +222,8 @@ bash /shared/agent-sidecar/scripts/demo_mpi_segfault.sh
 | 源码 / MPI 二进制 | `/shared/agent-sidecar` |
 | mpi-monitor（proc-monitor import） | `/shared/mpi-monitor/src` |
 | 部署脚本 | `/shared/agent-sidecar/scripts/deploy_shared.sh` |
+| 作业入口 | `/shared/agent-sidecar/scripts/sidecar.sh` |
+| 分析入口 | `/shared/agent-sidecar/scripts/sidecar-analy.sh` |
 | job-assist 演示 | `/shared/agent-sidecar/scripts/demo_job_assist_mpi.sh` |
 | MPI IO scratch | `/shared/mpi-io` |
 | 运行产物 | `/shared/agent-runs` |
@@ -234,9 +241,8 @@ bash /shared/agent-sidecar/scripts/demo_job_assist_mpi.sh \
 已在分配内时，只跑 wrap：
 
 ```bash
-export PYTHONPATH=/shared/agent-sidecar/src PYTHONUNBUFFERED=1 AGENT_VERBOSE=1
 salloc -N3 -n3 -w cn1,cn2,cn3 -p test
-python3 -m agent_sidecar srun --agent-verbose --agent-profile=tools-only \
+bash /shared/agent-sidecar/scripts/sidecar.sh srun --agent-verbose \
   --agent-skills=proc-monitor,node-diag \
   --agent-output-dir /shared/agent-runs \
   -n3 -l -- hostname

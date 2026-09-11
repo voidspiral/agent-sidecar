@@ -44,6 +44,7 @@ class AgentParseError(Exception):
 @dataclass
 class AgentOptions:
     profile: str = "job-assist"
+    profile_explicit: bool = False
     skills: tuple[str, ...] = ()
     output_dir: str | None = None
     node_llm: bool = False
@@ -111,6 +112,7 @@ def parse_agent_argv(argv: Sequence[str]) -> ParsedArgv:
 def _assign(options: AgentOptions, name: str, value: str, *, present: bool) -> None:
     if name == "agent-profile":
         options.profile = value
+        options.profile_explicit = True
     elif name == "agent-skills":
         options.skills = tuple(s for s in value.split(",") if s)
     elif name == "agent-output-dir":
@@ -150,8 +152,17 @@ def validate_profile(profile: str) -> str:
     return profile
 
 
-def apply_profile_defaults(options: AgentOptions) -> AgentOptions:
-    options.profile = validate_profile(options.profile or "job-assist")
+def apply_profile_defaults(
+    options: AgentOptions, env: dict[str, str] | None = None
+) -> AgentOptions:
+    env = env if env is not None else os.environ
+    if (
+        not options.profile_explicit
+        and (env.get("AGENT_ENTRY") or "").strip() == "sidecar"
+    ):
+        options.profile = "tools-only"
+    else:
+        options.profile = validate_profile(options.profile or "job-assist")
     if not options.skills:
         options.skills = DEFAULT_SKILLS
     return options
