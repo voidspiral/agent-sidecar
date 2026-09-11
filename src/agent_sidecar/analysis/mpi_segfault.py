@@ -107,6 +107,7 @@ def build_mpi_segfault_analysis(
             "确认该 rank 是否在通信完成后本地崩溃（非 MPI_Abort）",
             "用相同 --agent-match 复现：agent srun ... -- /path/to/mpi_fault_segfault",
             f"尚未授权源码时请执行：{ask_cmd}",
+            f"需要模型解读时可再加 --llm：{ask_cmd} --llm",
         ],
     }
 
@@ -146,7 +147,7 @@ def chinese_summary(analysis: dict[str, Any]) -> str:
     else:
         items.append(
             "4. 建议：尚未做源码级定位。请提供应用源码目录后执行："
-            f"`{ask}`；不要臆造 file:line"
+            f"`{ask}`；需要模型解读时可再加 `--llm`：`{ask} --llm`；不要臆造 file:line"
         )
     return "\n".join(items)
 
