@@ -27,10 +27,11 @@ bash /shared/agent-sidecar/scripts/sidecar.sh srun -N 2 -n 4 -- ./app
 bash /shared/agent-sidecar/scripts/sidecar-analy.sh --log /shared/agent-runs/<run_id> --code /path/to/src
 ```
 
-`sidecar.sh` 包装用户 `srun`，默认只采集（`tools-only`，除非显式
-`--agent-profile`）。`sidecar-analy.sh` 读该 run 目录（`--log`），**默认开
-OpenCode**。`--no-llm` 只跑确定性 pack。`--code` 是授权源码树。模块形式
-`python3 -m agent_sidecar …` 仍可用。
+`sidecar.sh` 包装用户 `srun`：节点工具采集，并在提交端用 OpenCode 解读这些
+产物（与 `agent srun` 默认 `job-assist` 相同）。`--agent-profile=tools-only`
+关闭伴随启动的模型。`sidecar-analy.sh` 是事后 **授权源码** 再分析：`--log`
+为 run 目录，`--code` 为允许引用的源码树。`--no-llm` 只跑确定性 pack。
+模块形式 `python3 -m agent_sidecar …` 仍可用。
 
 ## 包装作业
 

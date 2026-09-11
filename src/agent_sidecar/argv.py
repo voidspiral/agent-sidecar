@@ -155,14 +155,8 @@ def validate_profile(profile: str) -> str:
 def apply_profile_defaults(
     options: AgentOptions, env: dict[str, str] | None = None
 ) -> AgentOptions:
-    env = env if env is not None else os.environ
-    if (
-        not options.profile_explicit
-        and (env.get("AGENT_ENTRY") or "").strip() == "sidecar"
-    ):
-        options.profile = "tools-only"
-    else:
-        options.profile = validate_profile(options.profile or "job-assist")
+    _ = env
+    options.profile = validate_profile(options.profile or "job-assist")
     if not options.skills:
         options.skills = DEFAULT_SKILLS
     return options

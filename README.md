@@ -27,10 +27,12 @@ bash /shared/agent-sidecar/scripts/sidecar.sh srun -N 2 -n 4 -- ./app
 bash /shared/agent-sidecar/scripts/sidecar-analy.sh --log /shared/agent-runs/<run_id> --code /path/to/src
 ```
 
-`sidecar.sh` wraps the user `srun` and collects only (`tools-only` unless
-`--agent-profile` is set). `sidecar-analy.sh` re-reads that run directory
-(`--log`) and runs OpenCode by default. Pass `--no-llm` for the pack only.
-`--code` is the authorized source tree. The module form
+`sidecar.sh` wraps the user `srun`, collects with node tools, and runs
+job-assist OpenCode on those artifacts (same default as `agent srun`).
+`--agent-profile=tools-only` skips the wrap-time model.
+`sidecar-analy.sh` is the later **source-authorized** pass: `--log` is the
+run directory, `--code` is the tree the operator allows the model to cite.
+Pass `--no-llm` for the deterministic pack only. The module form
 `python3 -m agent_sidecar …` remains available for advanced use.
 
 ## Wrap a job

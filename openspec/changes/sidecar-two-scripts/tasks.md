@@ -8,10 +8,11 @@
 - [x] 2.1 Write failing tests that phase-1 `ask_code_cmd` / Chinese notes contain `sidecar-analy.sh --log` (not module `--run-dir --llm`); verify `python3 -m unittest tests.test_analysis_pack` fails then update packs until pass
 - [x] 2.2 Write failing quiet-report test that non-ok `reason_code` adds a `sidecar-analy.sh --log` next-step line; verify fail then implement `format_run_report` until `tests.test_quiet_report` passes
 
-## 3. sidecar.sh tools-only default (TDD)
+## 3. sidecar.sh job-assist default (TDD)
 
-- [x] 3.1 Write failing tests that `AGENT_ENTRY=sidecar` with omitted `--agent-profile` yields `tools-only`, explicit `--agent-profile=job-assist` wins, and unset `AGENT_ENTRY` leaves module default unchanged; verify `python3 -m unittest tests.test_sidecar_scripts` (or argv tests) fails
-- [x] 3.2 Implement `apply_profile_defaults` + `scripts/sidecar.sh` / `scripts/sidecar-analy.sh` (PYTHONPATH, `AGENT_ENTRY=sidecar`, exec module); verify scripts are executable and tests pass
+- [x] 3.1 `sidecar.sh` / module omit `--agent-profile` is `job-assist`;
+  `--agent-profile=tools-only` still opts out. Verify `tests.test_sidecar_scripts`
+- [x] 3.2 Thin `sidecar.sh` (PYTHONPATH + exec); no `AGENT_ENTRY` tools-only flip
 - [x] 3.3 Print both `/shared/agent-sidecar/scripts/sidecar.sh` and `sidecar-analy.sh` in deploy import-check footer; verify deploy tests or string assertion pass
 
 ## 4. Docs and demos

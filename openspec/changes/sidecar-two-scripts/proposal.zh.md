@@ -6,8 +6,9 @@ shell 入口：先跑作业，再事后授权源码并用模型解读（默认�
 
 ## What Changes
 
-- 增加 `scripts/sidecar.sh`，包装 `srun`/`sbatch`/`salloc`。经此脚本且未传
-  `--agent-profile` 时默认 `tools-only`（只采集，wrap 期不跑 OpenCode）。
+- Add `scripts/sidecar.sh` wrapping `srun`/`sbatch`/`salloc`. 省略
+  `--agent-profile` 时仍为 `job-assist`：每次 wrap（含正常作业）都用节点
+  工具产物在提交端跑 OpenCode。`--agent-profile=tools-only` 为关闭开关。
 - 增加 `scripts/sidecar-analy.sh`，包装 `agent analy`。
 - **BREAKING**（`agent analy`）：默认开 OpenCode。`--no-llm` 回到纯确定性。
   `--llm` 仍接受。
@@ -25,8 +26,8 @@ shell 入口：先跑作业，再事后授权源码并用模型解读（默认�
 
 ### Modified Capabilities
 
-- `agent-launch`：登录节点 `sidecar.sh` / `sidecar-analy.sh`；
-  `AGENT_ENTRY=sidecar` 默认 tools-only；analy 接受 `--log` 或 `--run-dir`。
+- `agent-launch`：登录节点 `sidecar.sh` / `sidecar-analy.sh`；wrap 默认
+  `job-assist`；analy 接受 `--log` 或 `--run-dir`。
 - `job-analysis`：`agent analy` 默认 OpenCode；`--no-llm` 为确定性路径；
   `ask_code_cmd` 写成 `sidecar-analy.sh --log`。
 
@@ -36,6 +37,5 @@ shell 入口：先跑作业，再事后授权源码并用模型解读（默认�
 
 ## Non-goals
 
-ClusterHelm 控制面、裸 SLURM/应用日志当 `--log`、`sidecar.sh` wrap 期 LLM
-（除非显式 `job-assist`）、改变 `agent srun` 省略 profile 的行为、计算节点
-LLM、自动 remediate、编造 `reason_code`。
+ClusterHelm 控制面、裸 SLURM/应用日志当 `--log`、用 `analy` 替代伴随启动的
+job-assist 总结、计算节点 LLM、自动 remediate、编造 `reason_code`。

@@ -20,25 +20,21 @@ MUST print the `/shared/agent-sidecar/scripts/` paths for both scripts.
 - **THEN** the CLI runs `analy` with those flags on the submit host and
   starts no additional overlap supervisor beyond the wrapped command
 
-### Requirement: sidecar.sh defaults to tools-only
+### Requirement: sidecar.sh defaults to job-assist
 When `sidecar.sh` launches a wrap command and the operator omitted
-`--agent-profile`, the system SHALL default the profile to `tools-only`.
-An explicit `--agent-profile` on the command line MUST win. Invoking
-`agent srun` / `python3 -m agent_sidecar srun` without `sidecar.sh` MUST
-NOT change omitted-profile behavior in this change.
+`--agent-profile`, the system SHALL default the profile to `job-assist`
+(node tools plus submit-host OpenCode on tool artifacts). Explicit
+`--agent-profile=tools-only` MUST skip wrap-time OpenCode. `sidecar-analy.sh`
+is the source-authorized root-cause path (`--code`) and MUST NOT replace
+the wrap-time job-assist note for a healthy job.
 
-#### Scenario: sidecar.sh omit profile is tools-only
+#### Scenario: sidecar.sh omit profile is job-assist
 - **WHEN** `sidecar.sh srun -- ./app` runs with no `--agent-profile`
-- **THEN** only tool sidecars start and wrap-time OpenCode is not launched
+- **THEN** tool sidecars start and wrap-time OpenCode runs after telemetry
 
-#### Scenario: sidecar.sh explicit job-assist
-- **WHEN** `sidecar.sh srun --agent-profile=job-assist -- ./app` runs
-- **THEN** the job-assist profile is used
-
-#### Scenario: module srun omit profile unchanged
-- **WHEN** `python3 -m agent_sidecar srun -- ./app` runs without
-  `--agent-profile` and without the sidecar.sh entry env
-- **THEN** omitted-profile behavior remains the pre-change default
+#### Scenario: sidecar.sh explicit tools-only
+- **WHEN** `sidecar.sh srun --agent-profile=tools-only -- ./app` runs
+- **THEN** wrap-time OpenCode is not launched
 
 ## MODIFIED Requirements
 

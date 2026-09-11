@@ -15,16 +15,15 @@ SLURM log file.
 
 **Goals:**
 
-- Two login-host scripts: `sidecar.sh` (run/collect) and
-  `sidecar-analy.sh` (analyze, LLM default).
-- `AGENT_ENTRY=sidecar` selects tools-only when profile is omitted.
+- Two login-host scripts: `sidecar.sh` (wrap + job-assist on tool artifacts)
+  and `sidecar-analy.sh` (source-authorized `--code` root-cause, LLM default).
 - `--log` / `--run-dir` aliases; `--no-llm` for deterministic analy.
 - Next-step text uses `sidecar-analy.sh --log`.
 
 **Non-Goals:**
 
-- Changing omitted-profile behavior for `agent srun`.
-- Raw `.out` ingest, wrap-time LLM for `sidecar.sh`, ClusterHelm.
+- Changing omitted-profile behavior for `agent srun` (already `job-assist`).
+- Raw `.out` ingest, ClusterHelm.
 
 ## Decisions
 
@@ -34,15 +33,14 @@ SLURM log file.
    `--agent-profile=tools-only` — rejected as harder to unit-test.
 
 2. **`sidecar.sh` is a thin PATH wrapper.** Resolve repo root, prepend
-   `src/` to `PYTHONPATH`, export `AGENT_ENTRY=sidecar`, exec
-   `python3 -m agent_sidecar "$@"`. Profile default lives in
-   `apply_profile_defaults`. **Alternative:** rewrite argv in bash —
-   rejected.
+   `src/` to `PYTHONPATH`, exec `python3 -m agent_sidecar "$@"`. Profile
+   default remains `job-assist` (same as the module CLI). **Alternative:**
+   force `tools-only` via `AGENT_ENTRY` — rejected; wrap must interpret
+   skill artifacts on every launch.
 
-3. **Module `agent srun` profile unchanged.** Only `AGENT_ENTRY=sidecar`
-   flips omitted profile to tools-only. Explicit `--agent-profile` always
-   wins. **Alternative:** change global default to tools-only — rejected
-   to avoid fighting live-opencode-assist.
+3. **`tools-only` is opt-out only.** `--agent-profile=tools-only` skips
+   wrap-time OpenCode. `sidecar-analy.sh --code` is the authorized-source
+   pass and does not replace the wrap note.
 
 4. **`agent analy` defaults to OpenCode.** `--no-llm` is the deterministic
    path; `--llm` stays accepted. Wrap still calls `run_analysis(...,

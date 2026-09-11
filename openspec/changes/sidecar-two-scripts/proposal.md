@@ -8,9 +8,10 @@ model by default.
 
 ## What Changes
 
-- Add `scripts/sidecar.sh` wrapping `srun`/`sbatch`/`salloc`. When invoked
-  through this script and `--agent-profile` is omitted, default to
-  `tools-only` (collect only; no wrap-time OpenCode).
+- Add `scripts/sidecar.sh` wrapping `srun`/`sbatch`/`salloc`. Omitted
+  `--agent-profile` stays `job-assist`: node tools plus submit-host OpenCode
+  on tool artifacts after every wrap (including healthy jobs).
+  `--agent-profile=tools-only` remains the opt-out.
 - Add `scripts/sidecar-analy.sh` wrapping `agent analy`.
 - **BREAKING** for `agent analy`: OpenCode is on by default. `--no-llm`
   restores the deterministic-only path. `--llm` remains accepted.
@@ -29,9 +30,8 @@ model by default.
 
 ### Modified Capabilities
 
-- `agent-launch`: Login-host `sidecar.sh` / `sidecar-analy.sh`;
-  `AGENT_ENTRY=sidecar` tools-only default; `analy` accepts `--log` or
-  `--run-dir`.
+- `agent-launch`: Login-host `sidecar.sh` / `sidecar-analy.sh`; wrap
+  defaults to `job-assist`; `analy` accepts `--log` or `--run-dir`.
 - `job-analysis`: `agent analy` defaults to OpenCode; `--no-llm` is the
   deterministic path; `ask_code_cmd` cites `sidecar-analy.sh --log`.
 
@@ -50,8 +50,8 @@ model by default.
 - ClusterHelm control-plane integration (Master/Slave, workflow_runner,
   partition_report, SPANK, auto `scancel`).
 - Ingesting raw SLURM `.out` or arbitrary application logs as `--log`.
-- Wrap-time OpenCode when using `sidecar.sh` (unless the user passes
-  `--agent-profile=job-assist`).
+- Wrap-time OpenCode is the default for `sidecar.sh` (job-assist). Source
+  citation still requires `sidecar-analy.sh --code`.
 - Changing omitted `--agent-profile` behavior for
   `python3 -m agent_sidecar srun` / `agent srun`.
 - Compute-node LLM, automatic remediate, or inventing `reason_code`.

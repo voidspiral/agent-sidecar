@@ -13,15 +13,15 @@ OpenCode runner；无 ClusterHelm；无计算节点 LLM；无写死用户家目�
 
 **Goals:**
 
-- 两条登录节点脚本：`sidecar.sh`（跑/采）与 `sidecar-analy.sh`（分析，默认 LLM）。
-- `AGENT_ENTRY=sidecar` 在省略 profile 时选 tools-only。
+- 两条登录节点脚本：`sidecar.sh`（wrap + 用工具产物做 job-assist）与
+  `sidecar-analy.sh`（`--code` 授权源码后再 LLM 查原因）。
 - `--log` / `--run-dir` 别名；`--no-llm` 做确定性 analy。
 - 下一步文案用 `sidecar-analy.sh --log`。
 
 **Non-Goals:**
 
-- 改 `agent srun` 省略 profile 的行为。
-- 裸 `.out` 摄入、`sidecar.sh` wrap 期 LLM、ClusterHelm。
+- 改 `agent srun` 省略 profile 的行为（已经是 `job-assist`）。
+- 裸 `.out` 摄入、ClusterHelm。
 
 ## Decisions
 
@@ -30,13 +30,12 @@ OpenCode runner；无 ClusterHelm；无计算节点 LLM；无写死用户家目�
    `--agent-profile=tools-only` — 否决（难单测）。
 
 2. **`sidecar.sh` 做薄 PATH 包装。** 解析仓库根、把 `src/` 加进
-   `PYTHONPATH`、导出 `AGENT_ENTRY=sidecar`、exec
-   `python3 -m agent_sidecar "$@"`。profile 默认放在
-   `apply_profile_defaults`。**备选：** bash 改写 argv — 否决。
+   `PYTHONPATH`、exec `python3 -m agent_sidecar "$@"`。profile 默认仍是
+   `job-assist`（与模块 CLI 相同）。**备选：** 用 `AGENT_ENTRY` 强制
+   `tools-only` — 否决；每次伴随启动都要解读 skill 产物。
 
-3. **模块 `agent srun` 的 profile 不变。** 仅 `AGENT_ENTRY=sidecar` 把省略
-   profile 打成 tools-only。显式 `--agent-profile` 优先。**备选：** 全局默认
-  改成 tools-only — 否决，避免和 live-opencode-assist 打架。
+3. **`tools-only` 只作关闭开关。** `--agent-profile=tools-only` 跳过 wrap
+   期 OpenCode。`sidecar-analy.sh --code` 是授权源码通道，不替代 wrap 笔记。
 
 4. **`agent analy` 默认 OpenCode。** `--no-llm` 才是确定性路径；`--llm`
    仍接受。wrap 仍 `run_analysis(..., use_llm=False)`。缺 OpenCode 仍

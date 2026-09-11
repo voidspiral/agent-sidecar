@@ -1,4 +1,4 @@
-"""Login-host sidecar.sh / sidecar-analy.sh and AGENT_ENTRY profile default."""
+"""Login-host sidecar.sh / sidecar-analy.sh; wrap defaults to job-assist."""
 
 from __future__ import annotations
 
@@ -27,28 +27,22 @@ class TestSidecarScripts(unittest.TestCase):
             mode = path.stat().st_mode
             self.assertTrue(mode & stat.S_IXUSR)
 
-    def test_sidecar_sh_sets_agent_entry(self) -> None:
+    def test_sidecar_sh_does_not_force_tools_only(self) -> None:
         wrap = (ROOT / "scripts" / "sidecar.sh").read_text(encoding="utf-8")
-        self.assertIn("AGENT_ENTRY=sidecar", wrap)
-        analy = (ROOT / "scripts" / "sidecar-analy.sh").read_text(encoding="utf-8")
-        self.assertNotIn("AGENT_ENTRY=sidecar", analy)
+        self.assertNotIn("AGENT_ENTRY=sidecar", wrap)
+        self.assertIn("exec python3 -m agent_sidecar", wrap)
 
-    def test_agent_entry_sidecar_defaults_tools_only(self) -> None:
-        parsed = parse_agent_argv(["srun", "-n", "1", "--", "./app"])
-        apply_profile_defaults(parsed.options, env={"AGENT_ENTRY": "sidecar"})
-        self.assertEqual(parsed.options.profile, "tools-only")
-
-    def test_agent_entry_explicit_job_assist_wins(self) -> None:
-        parsed = parse_agent_argv(
-            ["srun", "--agent-profile=job-assist", "-n", "1", "--", "./app"]
-        )
-        apply_profile_defaults(parsed.options, env={"AGENT_ENTRY": "sidecar"})
-        self.assertEqual(parsed.options.profile, "job-assist")
-
-    def test_module_srun_omit_profile_unchanged(self) -> None:
+    def test_sidecar_sh_omit_profile_is_job_assist(self) -> None:
         parsed = parse_agent_argv(["srun", "-n", "1", "--", "./app"])
         apply_profile_defaults(parsed.options, env={})
         self.assertEqual(parsed.options.profile, "job-assist")
+
+    def test_explicit_tools_only_still_opts_out(self) -> None:
+        parsed = parse_agent_argv(
+            ["srun", "--agent-profile=tools-only", "-n", "1", "--", "./app"]
+        )
+        apply_profile_defaults(parsed.options, env={})
+        self.assertEqual(parsed.options.profile, "tools-only")
 
     def test_readmes_lead_with_two_scripts(self) -> None:
         for name in ("README.md", "README.zh.md"):
