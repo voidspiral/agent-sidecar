@@ -68,8 +68,26 @@ python3 -m agent_sidecar srun -N 2 -n 4 -- ./app
 `opencode_timeout` / `opencode_failed`），不替换用户退出码，也不改
 `reason_code`。
 
-mpi-monitor 源码默认 `/shared/mpi-monitor/src`，可用 `AGENT_MPI_MONITOR_SRC`
-覆盖。有 matplotlib 时 wrap 会在 `charts/` 写出 **每个 pid × 指标** 一张 PNG。
+`proc-monitor` 会 `import mpi_monitor.collect.collect_loop`。把 sidecar 和
+**mpi-monitor 源码树** 一起放到 NFS，计算节点才能采集 CPU/RSS/IO。mpi-monitor
+默认路径是 `/shared/mpi-monitor/src`，可用 `AGENT_MPI_MONITOR_SRC` 覆盖。
+
+```bash
+# 在 mn 上；参数是你的 mpi-monitor 目录（仓库根或 src/）
+bash scripts/deploy_shared.sh /path/to/mpi-monitor
+# 只打印路径，不拷贝
+bash scripts/deploy_shared.sh --dry-run /path/to/mpi-monitor
+# 等价
+python3 -m agent_sidecar deploy --mpi-monitor /path/to/mpi-monitor
+```
+
+脚本会 rsync 本仓库到 `/shared/agent-sidecar`、给定目录到
+`/shared/mpi-monitor`，并打印 `AGENT_MPI_MONITOR_SRC` 与 `PYTHONPATH`。
+`agent srun` 会自动把该路径注入 overlap supervisor，作业里不必再 export
+`PYTHONPATH`。缺包是 fail-soft：写 `events/mpi_monitor_import.err`，`series/`
+为空，不改用户退出码。
+
+有 matplotlib 时 wrap 会在 `charts/` 写出 **每个 pid × 指标** 一张 PNG。
 作业运行期间，提交端还会起 live overlay 页（同一指标下所有进程叠在一张图，
 图例用 rank 或 `host pid`）。quiet 会打印
 `[agent] live plot: http://127.0.0.1:8765`。笔记本访问：
@@ -95,8 +113,7 @@ MPI 示例见 `examples/mpi_io_load.c`：每 rank 先约 60 秒 NFS 写/fsync/�
 
 ```bash
 # 在 mn 上
-rsync -az ./ /shared/agent-sidecar/
-rsync -az /path/to/mpi-monitor/ /shared/mpi-monitor/
+bash scripts/deploy_shared.sh /path/to/mpi-monitor
 bash /shared/agent-sidecar/scripts/demo_job_assist_mpi.sh \
   /shared/agent-sidecar /shared/agent-runs
 ```
@@ -116,7 +133,8 @@ OpenCode 凭据留在登录节点 OpenCode 自己的配置里，不上 NFS、不
 OpenCode skills：`.opencode/skills/`（索引见 [.opencode/skills.md](.opencode/skills.md)）。
 
 其它子命令：`agent sbatch`、`agent salloc`（导出环境并透传）、
-`agent supervisor`、`agent report --run-dir DIR`。
+`agent supervisor`、`agent report --run-dir DIR`、
+`agent deploy --mpi-monitor DIR`（同步到 `/shared`）。
 
 默认注入是 overlap step（每节点 1 个 supervisor，`--mem=256M`），用户 `srun`
 单独一步以保留 PMI。overlap 在用户命令启动前失败时，回退一次 exec-wrapper。
@@ -166,6 +184,8 @@ job-assist 在登录节点加载，用来解读工具产物，不在计算节点
 | 用途 | 路径 |
 |------|------|
 | 源码 / MPI 二进制 | `/shared/agent-sidecar` |
+| mpi-monitor（proc-monitor import） | `/shared/mpi-monitor/src` |
+| 部署脚本 | `/shared/agent-sidecar/scripts/deploy_shared.sh` |
 | job-assist 演示 | `/shared/agent-sidecar/scripts/demo_job_assist_mpi.sh` |
 | MPI IO scratch | `/shared/mpi-io` |
 | 运行产物 | `/shared/agent-runs` |
@@ -174,6 +194,7 @@ job-assist 在登录节点加载，用来解读工具产物，不在计算节点
 
 ```bash
 ssh mn
+bash /shared/agent-sidecar/scripts/deploy_shared.sh /path/to/mpi-monitor
 export PYTHONPATH=/shared/agent-sidecar/src PYTHONUNBUFFERED=1 AGENT_VERBOSE=1
 bash /shared/agent-sidecar/scripts/demo_job_assist_mpi.sh \
   /shared/agent-sidecar /shared/agent-runs
@@ -191,8 +212,8 @@ python3 -m agent_sidecar srun --agent-verbose --agent-profile=tools-only \
 ```
 
 看最新 run 目录下的 `meta.json`、`telemetry.json`。默认 `job-assist` 会在 mn
-上跑 OpenCode；上面的 `tools-only` 只采工具。`proc-monitor` / `node-diag` 的
-真实采集仍依赖注入的采集函数，空跑时 `series/` 可能为空。
+上跑 OpenCode；上面的 `tools-only` 只采工具。`proc-monitor` 依赖已部署的
+mpi-monitor；未部署时 `events/mpi_monitor_import.err`，`series/` 为空。
 
 ## 测试
 
