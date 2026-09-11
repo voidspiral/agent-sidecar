@@ -72,7 +72,26 @@ to `assist/job.json` if a live summary exists. Otherwise it runs a post-job
 OpenCode (same default budget unless `AGENT_OPENCODE_FINAL_TIMEOUT` is set).
 Set `AGENT_OPENCODE_FINAL_TIMEOUT=0` to skip the post-job model.
 
-Set `AGENT_MPI_MONITOR_SRC` if mpi-monitor is not at `/shared/mpi-monitor/src`.
+`proc-monitor` imports `mpi_monitor.collect.collect_loop`. Deploy **both**
+trees onto NFS so every compute node can import them. Default Python path
+for mpi-monitor is `/shared/mpi-monitor/src`; override with
+`AGENT_MPI_MONITOR_SRC`.
+
+```bash
+# on mn — pass your mpi-monitor directory (repo root or its src/)
+bash scripts/deploy_shared.sh /path/to/mpi-monitor
+# dry-run (prints sidecar + mpi-monitor src/dest and PYTHONPATH)
+bash scripts/deploy_shared.sh --dry-run /path/to/mpi-monitor
+# equivalent
+python3 -m agent_sidecar deploy --mpi-monitor /path/to/mpi-monitor
+```
+
+The tool rsyncs this repo to `/shared/agent-sidecar` and the given tree to
+`/shared/mpi-monitor`, then prints `AGENT_MPI_MONITOR_SRC` and `PYTHONPATH`.
+`agent srun` injects that path for the overlap supervisor; you do not need
+to export `PYTHONPATH` for wrapped jobs. Missing mpi-monitor is fail-soft
+(`events/mpi_monitor_import.err`); `series/` stays empty.
+
 Wrap writes optional PNG under `charts/` when matplotlib is installed (one file
 per pid × metric). While the job runs, the submit host also serves a live
 overlay page (all processes of one metric on one chart, legend by rank or
@@ -94,8 +113,7 @@ and run output there so every node sees the same files:
 
 ```bash
 # on mn
-rsync -az ./ /shared/agent-sidecar/
-rsync -az /path/to/mpi-monitor/ /shared/mpi-monitor/
+bash scripts/deploy_shared.sh /path/to/mpi-monitor
 bash /shared/agent-sidecar/scripts/demo_job_assist_mpi.sh \
   /shared/agent-sidecar /shared/agent-runs
 ```

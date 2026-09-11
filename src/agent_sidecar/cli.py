@@ -1,4 +1,4 @@
-"""agent CLI: srun / sbatch / salloc / supervisor / report / serve / analy."""
+"""agent CLI: srun / sbatch / salloc / supervisor / report / serve / analy / deploy."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ from agent_sidecar.tools.node_diag import NodeDiag
 from agent_sidecar.tools.proc_monitor import ProcMonitor
 from agent_sidecar.tools.slurm_tap import SlurmTap
 
-USAGE = "usage: agent srun|sbatch|salloc|supervisor|report|serve|analy ..."
+USAGE = "usage: agent srun|sbatch|salloc|supervisor|report|serve|analy|deploy ..."
 
 PLUGIN_FACTORIES = {
     "proc-monitor": ProcMonitor,
@@ -313,6 +313,44 @@ def cmd_analy(argv: list[str]) -> int:
     return 0
 
 
+def cmd_deploy(argv: list[str]) -> int:
+    from agent_sidecar.deploy import (
+        default_shared,
+        default_sidecar_root,
+        run_deploy,
+    )
+
+    p = argparse.ArgumentParser(
+        prog="agent deploy",
+        description="Rsync this sidecar and an mpi-monitor tree onto NFS /shared.",
+    )
+    p.add_argument(
+        "--mpi-monitor",
+        type=Path,
+        help="mpi-monitor source tree (repo root or its src/ directory)",
+    )
+    p.add_argument(
+        "mpi_monitor_dir",
+        nargs="?",
+        type=Path,
+        help="same as --mpi-monitor (scripts/deploy_shared.sh uses this)",
+    )
+    p.add_argument("--sidecar", type=Path, default=None, help="agent-sidecar tree")
+    p.add_argument("--shared", type=Path, default=None, help="NFS prefix (default /shared)")
+    p.add_argument("--dry-run", action="store_true", help="print paths, do not copy")
+    try:
+        ns = p.parse_args(argv)
+    except SystemExit as exc:
+        return int(exc.code) if exc.code is not None else 2
+    mpi = ns.mpi_monitor or ns.mpi_monitor_dir
+    if mpi is None:
+        print("usage: agent deploy --mpi-monitor DIR", file=sys.stderr)
+        return 2
+    sidecar = ns.sidecar or default_sidecar_root()
+    shared = ns.shared or default_shared()
+    return run_deploy(sidecar, mpi, shared, dry_run=bool(ns.dry_run))
+
+
 def cmd_serve(argv: list[str]) -> int:
     from agent_sidecar.live_plot_http import DEFAULT_HOST, DEFAULT_PORT, LivePlotServer
 
@@ -356,6 +394,8 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_analy(argv[1:])
         if cmd == "serve":
             return cmd_serve(argv[1:])
+        if cmd == "deploy":
+            return cmd_deploy(argv[1:])
         parsed = parse_agent_argv(argv)
         apply_profile_defaults(parsed.options)
         if parsed.options.node_llm:
