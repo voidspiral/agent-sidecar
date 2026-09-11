@@ -85,7 +85,9 @@ python3 -m agent_sidecar serve --run-dir /shared/agent-runs/<run_id>
 可选：设 `AGENT_OPENCODE_MODEL`（`provider/model`）固定模型。job-assist
 live 超时默认 300s（`AGENT_OPENCODE_TIMEOUT`）。用户步骤结束时取消 live
 OpenCode；若已有 `assist/live.json` 摘要则提升为 `assist/job.json`。
-除非设置 `AGENT_OPENCODE_FINAL_TIMEOUT` 大于 0，作业结束后不再新拉一轮模型。
+作业结束时若无 live 摘要可 promote，则默认再跑一轮 post-job OpenCode（超时同
+`AGENT_OPENCODE_TIMEOUT`，可用 `AGENT_OPENCODE_FINAL_TIMEOUT` 覆盖）。设
+`AGENT_OPENCODE_FINAL_TIMEOUT=0` 可跳过作业结束后的模型。
 
 MPI 示例见 `examples/mpi_io_load.c`：每 rank 先约 60 秒 NFS 写/fsync/读，
 再 30 秒本地 CPU burn（`mpi_io_load [io_seconds] [work_dir] [cpu_seconds]`；
@@ -156,6 +158,7 @@ job-assist 在登录节点加载，用来解读工具产物，不在计算节点
 | [mpi-monitor](.opencode/skills/mpi-monitor/SKILL.md) | 解读 `series/` 的 CPU/RSS/IO 与 `charts/` 路径；空 series 时区分采集失败与作业未启动 |
 | [launch-fail](.opencode/skills/launch-fail/SKILL.md) | `reason_code=execution_error` 且 `pid_count=0`（ENOENT / 二进制不在 NFS） |
 | [mpi-abort](.opencode/skills/mpi-abort/SKILL.md) | `reason_code=mpi_abort` 或 `assist/analysis.json` 的 pack=`mpi_abort` |
+| [mpi-segfault](.opencode/skills/mpi-segfault/SKILL.md) | `reason_code=mpi_segfault` 或 `assist/analysis.json` 的 pack=`mpi_segfault` |
 | [node-diag](.opencode/skills/node-diag/SKILL.md) | `reason_code=node_local` 或 `events/node-diag.txt` 出现作业内 OOM / cgroup `oom_kill` / NFS hang |
 
 离线确定性分析（默认不调 OpenCode）。**两阶段：**（1）不带 `--code`：只根据
@@ -176,6 +179,13 @@ MPI abort 故障演示（期望 `reason_code=mpi_abort`、`pid_count>0`、
 
 ```bash
 bash /shared/agent-sidecar/scripts/demo_mpi_abort.sh
+```
+
+MPI 段错误故障演示（期望 `reason_code=mpi_segfault`、`pid_count>0`、
+`needs_source=true` 直到提供 `--code`）：
+
+```bash
+bash /shared/agent-sidecar/scripts/demo_mpi_segfault.sh
 ```
 
 ## 测试集群

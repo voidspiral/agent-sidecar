@@ -27,6 +27,15 @@ class TestClassify(unittest.TestCase):
         self.assertEqual(classify_mpi_text("assert (!closed)"), "mpi_abort")
         self.assertIsNone(classify_mpi_text("job finished ok"))
 
+    def test_mpi_segfault_patterns(self) -> None:
+        self.assertEqual(
+            classify_mpi_text("rank 0 segfault (null deref)"), "mpi_segfault"
+        )
+        self.assertEqual(classify_mpi_text("Segmentation fault"), "mpi_segfault")
+        self.assertEqual(classify_mpi_text("*** Process received signal 11 ***"), "mpi_segfault")
+        self.assertEqual(classify_mpi_text("Rank 1 exited on signal 11 (SIGSEGV)"), "mpi_segfault")
+        self.assertEqual(classify_mpi_text("rank 3 called MPI_Abort"), "mpi_abort")
+
     def test_node_diag_snapshot(self) -> None:
         self.assertEqual(classify_node_diag_text("oom_pids=[9]\noom_kill=0\n"), "node_local")
         self.assertEqual(classify_node_diag_text("oom_pids=[]\noom_kill=1\n"), "node_local")

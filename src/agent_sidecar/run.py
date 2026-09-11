@@ -228,7 +228,6 @@ def wrap_srun(
     ]
     saved_os = {key: os.environ.get(key) for key in _LLM_ENV_KEYS}
     assist_env = dict(env)
-    assist_env.setdefault("AGENT_OPENCODE_FINAL_TIMEOUT", "0")
     for key in _LLM_ENV_KEYS:
         env.pop(key, None)
         os.environ.pop(key, None)

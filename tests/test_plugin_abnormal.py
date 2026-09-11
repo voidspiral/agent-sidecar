@@ -44,6 +44,9 @@ MPI_CASES = (
     ("PMIx abort: rank disconnected from daemon", "mpi_abort"),
     ("hydra: assert (!closed) failed", "mpi_abort"),
     ("disconnected rank 3 detected", "mpi_abort"),
+    ("rank 0 segfault (null deref)", "mpi_segfault"),
+    ("Segmentation fault", "mpi_segfault"),
+    ("Rank 2 exited with signal 11", "mpi_segfault"),
 )
 
 NODE_DIAG_CASES = (

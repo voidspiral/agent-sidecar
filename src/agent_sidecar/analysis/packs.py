@@ -8,6 +8,8 @@ from typing import Any
 def select_pack(reason_code: str, summary: dict[str, Any]) -> str:
     if reason_code == "mpi_abort":
         return "mpi_abort"
+    if reason_code == "mpi_segfault":
+        return "mpi_segfault"
     if reason_code == "execution_error" and int(summary.get("pid_count") or 0) == 0:
         return "launch_fail"
     # Deferred stubs (not implemented as full packs in this change).
