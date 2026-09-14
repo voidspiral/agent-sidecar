@@ -47,6 +47,7 @@ _LLM_ENV_KEYS = (
 )
 
 DEFAULT_MPI_MONITOR_SRC = "/shared/mpi-monitor/src"
+DEFAULT_ETH_MONITOR_SRC = "/shared/eth-monitor/src"
 DEFAULT_JOB_DIR_SHARED = "/shared/agent-runs"
 AGENT_STOP_NAME = ".agent-stop"
 STDERR_TAIL_MAX = 8000
@@ -127,7 +128,8 @@ def run_user_command(
 
 def sidecar_pythonpath(src_dir: str, env: dict[str, str]) -> str:
     mpi = env.get("AGENT_MPI_MONITOR_SRC") or DEFAULT_MPI_MONITOR_SRC
-    return f"{src_dir}:{mpi}"
+    eth = env.get("AGENT_ETH_MONITOR_SRC") or DEFAULT_ETH_MONITOR_SRC
+    return f"{src_dir}:{mpi}:{eth}"
 
 
 def agent_stop_path(run_dir: Path) -> Path:
