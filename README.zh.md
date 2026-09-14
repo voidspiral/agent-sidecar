@@ -45,7 +45,7 @@ sidecar.sh --agent-output-dir ./runs srun -N 2 -n 4 ./app
 ```
 
 默认 `--agent-profile` 为 `job-assist`（节点工具 + 提交端 OpenCode）。
-`--agent-skills` 默认为 `proc-monitor,mpi-scan,slurm-tap,node-diag`；有 `/shared` 时输出目录默认为
+`--agent-skills` 默认为 `proc-monitor,mpi-scan,slurm-tap,node-diag,eth-monitor`；有 `/shared` 时输出目录默认为
 `/shared/agent-runs`；默认为 `--agent-quiet`（关键步骤 + 最终 report）。
 `--agent-verbose` 打开完整启动痕迹。`--agent-profile=tools-only` 关闭 OpenCode。
 
@@ -77,24 +77,26 @@ python3 -m agent_sidecar srun -N 2 -n 4 ./app
 `opencode_timeout` / `opencode_failed`），不替换用户退出码，也不改
 `reason_code`。
 
-`proc-monitor` 会 `import mpi_monitor.collect.collect_loop`。把 sidecar 和
-**mpi-monitor 源码树** 一起放到 NFS，计算节点才能采集 CPU/RSS/IO。mpi-monitor
-默认路径是 `/shared/mpi-monitor/src`，可用 `AGENT_MPI_MONITOR_SRC` 覆盖。
+`proc-monitor` 会 `import mpi_monitor.collect.collect_loop`，`eth-monitor` 会
+`import eth_monitor.collect.collect_loop`。把 sidecar、**mpi-monitor** 和
+**eth-monitor** 三棵源码树放到 NFS。默认路径 `/shared/mpi-monitor/src` 与
+`/shared/eth-monitor/src`，可用 `AGENT_MPI_MONITOR_SRC` /
+`AGENT_ETH_MONITOR_SRC` 覆盖。
 
 ```bash
-# 在 mn 上；参数是你的 mpi-monitor 目录（仓库根或 src/）
-bash scripts/deploy_shared.sh /path/to/mpi-monitor
+# 在 mn 上；mpi-monitor 然后 eth-monitor（仓库根或 src/）
+bash scripts/deploy_shared.sh /path/to/mpi-monitor /path/to/eth-monitor
 # 只打印路径，不拷贝
-bash scripts/deploy_shared.sh --dry-run /path/to/mpi-monitor
+bash scripts/deploy_shared.sh --dry-run /path/to/mpi-monitor /path/to/eth-monitor
 # 等价
-python3 -m agent_sidecar deploy --mpi-monitor /path/to/mpi-monitor
+python3 -m agent_sidecar deploy --mpi-monitor /path/to/mpi-monitor --eth-monitor /path/to/eth-monitor
 ```
 
-脚本会 rsync 本仓库到 `/shared/agent-sidecar`、给定目录到
-`/shared/mpi-monitor`，并打印 `AGENT_MPI_MONITOR_SRC` 与 `PYTHONPATH`。
-`agent srun` 会自动把该路径注入 overlap supervisor，作业里不必再 export
-`PYTHONPATH`。缺包是 fail-soft：写 `events/mpi_monitor_import.err`，`series/`
-为空，不改用户退出码。
+脚本会 rsync 本仓库到 `/shared/agent-sidecar`、mpi-monitor 到
+`/shared/mpi-monitor`、eth-monitor 到 `/shared/eth-monitor`，并打印
+`AGENT_MPI_MONITOR_SRC`、`AGENT_ETH_MONITOR_SRC` 与 `PYTHONPATH`。
+`agent srun` 会自动把路径注入 overlap supervisor。缺包是 fail-soft：写
+`events/mpi_monitor_import.err` 或 `events/eth_monitor_import.err`。
 
 有 matplotlib 时 wrap 会在 `charts/` 写出 **每个 pid × 指标** 一张 PNG。
 作业运行期间，提交端还会起 live overlay 页（同一指标下所有进程叠在一张图，
@@ -124,7 +126,7 @@ MPI 示例见 `examples/mpi_io_load.c`：每 rank 先约 60 秒 NFS 写/fsync/�
 
 ```bash
 # 在 mn 上
-bash scripts/deploy_shared.sh /path/to/mpi-monitor
+bash scripts/deploy_shared.sh /path/to/mpi-monitor /path/to/eth-monitor
 bash /shared/agent-sidecar/scripts/demo_job_assist_mpi.sh \
   /shared/agent-sidecar /shared/agent-runs
 ```
@@ -145,7 +147,7 @@ OpenCode skills：`.opencode/skills/`（索引见 [.opencode/skills.md](.opencod
 
 其它子命令：`agent sbatch`、`agent salloc`（导出环境并透传）、
 `agent supervisor`、`agent report --run-dir DIR`、
-`agent deploy --mpi-monitor DIR`（同步到 `/shared`）。
+`agent deploy --mpi-monitor DIR --eth-monitor DIR`（同步到 `/shared`）。
 
 默认注入是 overlap step（每节点 1 个 supervisor，`--mem=256M`），用户 `srun`
 单独一步以保留 PMI。overlap 在用户命令启动前失败时，回退一次 exec-wrapper。
@@ -157,12 +159,13 @@ OpenCode skills：`.opencode/skills/`（索引见 [.opencode/skills.md](.opencod
 
 ### 节点工具（`--agent-skills`）
 
-默认加载全部四个节点工具：
-`proc-monitor,mpi-scan,slurm-tap,node-diag`。逗号分隔可覆盖。
+默认加载全部五个节点工具：
+`proc-monitor,mpi-scan,slurm-tap,node-diag,eth-monitor`。逗号分隔可覆盖。
 
 | 名称 | 作用 | 产物 |
 |------|------|------|
 | `proc-monitor` | 按 `--match` 采样用户进程 CPU/RSS/IO（调用 mpi-monitor `collect_loop`） | `series/{host}_pid{pid}.jsonl`；有 matplotlib 时还有 `charts/*.png` |
+| `eth-monitor` | 采样节点以太网 rx/tx（调用 eth-monitor `collect_loop`） | `series/{host}_net.jsonl`；有 matplotlib 时还有以太网 PNG |
 | `mpi-scan` | 扫 MPI/启动器 stderr 的 abort 模式 | `events/stderr.tail` |
 | `slurm-tap` | 解析 scontrol/sstat/sacct 作业状态 | `events/slurm.json` |
 | `node-diag` | 计算节点采集本机 OOM / cgroup / hang，`stop` 时再采一次 | `events/node-diag.txt` |
@@ -183,6 +186,7 @@ job-assist 在登录节点加载，用来解读工具产物，不在计算节点
 | Skill | 何时用 |
 |-------|--------|
 | [mpi-monitor](.opencode/skills/mpi-monitor/SKILL.md) | 解读 `series/` 的 CPU/RSS/IO 与 `charts/` 路径；空 series 时区分采集失败与作业未启动 |
+| [eth-monitor](.opencode/skills/eth-monitor/SKILL.md) | 解读 `series/{host}_net.jsonl` 的以太网收发；不是 MPI 流量 |
 | [launch-fail](.opencode/skills/launch-fail/SKILL.md) | `reason_code=execution_error` 且 `pid_count=0`（ENOENT / 二进制不在 NFS） |
 | [mpi-abort](.opencode/skills/mpi-abort/SKILL.md) | `reason_code=mpi_abort` 或 `assist/analysis.json` 的 pack=`mpi_abort` |
 | [mpi-segfault](.opencode/skills/mpi-segfault/SKILL.md) | `reason_code=mpi_segfault` 或 `assist/analysis.json` 的 pack=`mpi_segfault` |
@@ -225,6 +229,7 @@ bash /shared/agent-sidecar/scripts/demo_mpi_segfault.sh
 |------|------|
 | 源码 / MPI 二进制 | `/shared/agent-sidecar` |
 | mpi-monitor（proc-monitor import） | `/shared/mpi-monitor/src` |
+| eth-monitor（eth-monitor import） | `/shared/eth-monitor/src` |
 | 部署脚本 | `/shared/agent-sidecar/scripts/deploy_shared.sh` |
 | 作业入口 | `/shared/agent-sidecar/scripts/sidecar.sh` |
 | 分析入口 | `/shared/agent-sidecar/scripts/sidecar-analy.sh` |
@@ -236,7 +241,7 @@ bash /shared/agent-sidecar/scripts/demo_mpi_segfault.sh
 
 ```bash
 ssh mn
-bash /shared/agent-sidecar/scripts/deploy_shared.sh /path/to/mpi-monitor
+bash /shared/agent-sidecar/scripts/deploy_shared.sh /path/to/mpi-monitor /path/to/eth-monitor
 export PYTHONPATH=/shared/agent-sidecar/src PYTHONUNBUFFERED=1 AGENT_VERBOSE=1
 bash /shared/agent-sidecar/scripts/demo_job_assist_mpi.sh \
   /shared/agent-sidecar /shared/agent-runs

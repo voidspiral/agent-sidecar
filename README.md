@@ -49,7 +49,7 @@ python3 -m agent_sidecar --agent-profile=tools-only srun -N 2 -n 4 ./app
 ```
 
 Default `--agent-profile` is `job-assist`. `--agent-skills` defaults to
-`proc-monitor,mpi-scan,slurm-tap,node-diag`. If `/shared` exists, the output directory defaults to
+`proc-monitor,mpi-scan,slurm-tap,node-diag,eth-monitor`. If `/shared` exists, the output directory defaults to
 `/shared/agent-runs`. Logging defaults to quiet (key steps + final report).
 `--agent-verbose` prints the full launch trace. `--agent-profile=tools-only`
 skips OpenCode.
@@ -92,25 +92,27 @@ to `assist/job.json` if a live summary exists. Otherwise it runs a post-job
 OpenCode (same default budget unless `AGENT_OPENCODE_FINAL_TIMEOUT` is set).
 Set `AGENT_OPENCODE_FINAL_TIMEOUT=0` to skip the post-job model.
 
-`proc-monitor` imports `mpi_monitor.collect.collect_loop`. Deploy **both**
-trees onto NFS so every compute node can import them. Default Python path
-for mpi-monitor is `/shared/mpi-monitor/src`; override with
-`AGENT_MPI_MONITOR_SRC`.
+`proc-monitor` imports `mpi_monitor.collect.collect_loop`. `eth-monitor`
+imports `eth_monitor.collect.collect_loop`. Deploy **all three** trees onto
+NFS so every compute node can import them. Default Python paths are
+`/shared/mpi-monitor/src` (`AGENT_MPI_MONITOR_SRC`) and
+`/shared/eth-monitor/src` (`AGENT_ETH_MONITOR_SRC`).
 
 ```bash
-# on mn — pass your mpi-monitor directory (repo root or its src/)
-bash scripts/deploy_shared.sh /path/to/mpi-monitor
-# dry-run (prints sidecar + mpi-monitor src/dest and PYTHONPATH)
-bash scripts/deploy_shared.sh --dry-run /path/to/mpi-monitor
+# on mn — mpi-monitor then eth-monitor (repo root or src/)
+bash scripts/deploy_shared.sh /path/to/mpi-monitor /path/to/eth-monitor
+# dry-run
+bash scripts/deploy_shared.sh --dry-run /path/to/mpi-monitor /path/to/eth-monitor
 # equivalent
-python3 -m agent_sidecar deploy --mpi-monitor /path/to/mpi-monitor
+python3 -m agent_sidecar deploy --mpi-monitor /path/to/mpi-monitor --eth-monitor /path/to/eth-monitor
 ```
 
-The tool rsyncs this repo to `/shared/agent-sidecar` and the given tree to
-`/shared/mpi-monitor`, then prints `AGENT_MPI_MONITOR_SRC` and `PYTHONPATH`.
-`agent srun` injects that path for the overlap supervisor; you do not need
-to export `PYTHONPATH` for wrapped jobs. Missing mpi-monitor is fail-soft
-(`events/mpi_monitor_import.err`); `series/` stays empty.
+The tool rsyncs this repo to `/shared/agent-sidecar`, mpi-monitor to
+`/shared/mpi-monitor`, and eth-monitor to `/shared/eth-monitor`, then prints
+`AGENT_MPI_MONITOR_SRC`, `AGENT_ETH_MONITOR_SRC`, and `PYTHONPATH`.
+`agent srun` injects those paths for the overlap supervisor; you do not need
+to export `PYTHONPATH` for wrapped jobs. Missing mpi-monitor or eth-monitor
+is fail-soft (`events/mpi_monitor_import.err`, `events/eth_monitor_import.err`).
 
 Wrap writes optional PNG under `charts/` when matplotlib is installed (one file
 per pid × metric). While the job runs, the submit host also serves a live
@@ -133,7 +135,7 @@ and run output there so every node sees the same files:
 
 ```bash
 # on mn
-bash scripts/deploy_shared.sh /path/to/mpi-monitor
+bash scripts/deploy_shared.sh /path/to/mpi-monitor /path/to/eth-monitor
 bash /shared/agent-sidecar/scripts/demo_job_assist_mpi.sh \
   /shared/agent-sidecar /shared/agent-runs
 ```
@@ -162,12 +164,13 @@ artifacts.
 
 ### Node tools (`--agent-skills`)
 
-Default is all four node tools:
-`proc-monitor,mpi-scan,slurm-tap,node-diag`. Comma-separate to override.
+Default is all five node tools:
+`proc-monitor,mpi-scan,slurm-tap,node-diag,eth-monitor`. Comma-separate to override.
 
 | Name | Role | Artifacts |
 |------|------|-----------|
 | `proc-monitor` | Sample matched user PIDs for CPU/RSS/IO via mpi-monitor `collect_loop` | `series/{host}_pid{pid}.jsonl`; `charts/*.png` when matplotlib is present |
+| `eth-monitor` | Sample host ethernet rx/tx via eth-monitor `collect_loop` | `series/{host}_net.jsonl`; ethernet PNG when matplotlib is present |
 | `mpi-scan` | Scan MPI/launcher stderr for abort patterns | `events/stderr.tail` |
 | `slurm-tap` | Parse scontrol/sstat/sacct job state | `events/slurm.json` |
 | `node-diag` | Collect local OOM / cgroup / hang on the compute node; refresh on `stop` | `events/node-diag.txt` |
@@ -189,6 +192,7 @@ nodes. Full index: [.opencode/skills.md](.opencode/skills.md).
 | Skill | When to use |
 |-------|-------------|
 | [mpi-monitor](.opencode/skills/mpi-monitor/SKILL.md) | Interpret CPU/RSS/IO from `series/` and `charts/` paths; empty series vs start failure |
+| [eth-monitor](.opencode/skills/eth-monitor/SKILL.md) | Interpret host ethernet rx/tx from `series/{host}_net.jsonl`; not MPI traffic |
 | [launch-fail](.opencode/skills/launch-fail/SKILL.md) | `reason_code=execution_error` and `pid_count=0` (ENOENT / binary not on NFS) |
 | [mpi-abort](.opencode/skills/mpi-abort/SKILL.md) | `reason_code=mpi_abort` or `assist/analysis.json` pack `mpi_abort` |
 | [mpi-segfault](.opencode/skills/mpi-segfault/SKILL.md) | `reason_code=mpi_segfault` or `assist/analysis.json` pack `mpi_segfault` |

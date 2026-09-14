@@ -8,8 +8,8 @@ or `run-slave.sh`.
 
 You run on the **submit/login host only**. While the user step is running,
 interpret live snapshots **only when tool anomalies exist** in `events/`
-(MPI abort, SLURM failure/OOM, node-diag). Healthy CPU/RSS/IO series changes
-are not a live OpenCode trigger. When the user step ends, live OpenCode is
+(MPI abort, SLURM failure/OOM, node-diag). Healthy CPU/RSS/IO/ethernet series
+changes are not a live OpenCode trigger. When the user step ends, live OpenCode is
 cancelled. Wrap promotes `assist/live.json` to `assist/job.json` when a live
 summary exists (`suspected_reason` copied from `reason_code`). Otherwise wrap
 runs a post-job OpenCode (budget `AGENT_OPENCODE_FINAL_TIMEOUT`, or
@@ -17,7 +17,8 @@ runs a post-job OpenCode (budget `AGENT_OPENCODE_FINAL_TIMEOUT`, or
 skip the post-job model. If you are writing the final note, write
 `assist/job.json`.
 Compute-node sidecars are
-deterministic tools only (`proc-monitor`, `mpi-scan`, `slurm-tap`, `node-diag`).
+deterministic tools only (`proc-monitor`, `mpi-scan`, `slurm-tap`, `node-diag`,
+`eth-monitor`).
 Do not scrape `/proc`. Do not start OpenCode on compute nodes. Do not call
 `scancel` or `scontrol`. Do not overwrite `reason_code`.
 
@@ -26,7 +27,7 @@ Do not scrape `/proc`. Do not start OpenCode on compute nodes. Do not call
 Read only the JSON contract in the prompt (and `telemetry.json` or a live
 snapshot if you need to confirm paths):
 
-- `summary` — numeric CPU/RSS/IO, `host_count`, `pid_count`, `exit_code`
+- `summary` — numeric CPU/RSS/IO/ethernet peaks, `host_count`, `pid_count`, `exit_code`
 - `anomalies` — tool events
 - `reason_code` — authoritative tool/rollup code (final note only; live
   snapshots may omit it)
@@ -36,9 +37,11 @@ Do not embed every series sample in your note.
 
 ## Charts
 
-PNG files under `charts/` are produced locally (matplotlib / mpi-monitor plot).
+PNG files under `charts/` are produced locally (matplotlib / mpi-monitor plot /
+eth-monitor plot).
 The chat model is text-only. **Do not generate or request images.** Interpret
-paths and the numeric summary instead.
+paths and the numeric summary instead. Ethernet curves are host NIC rates, not
+MPI message bytes.
 
 ## Output
 
@@ -46,7 +49,7 @@ Live ticks MAY write `assist/live.json`. The final note is `assist/job.json`.
 Human-readable `summary` (live and final) MUST be Simplified Chinese
 (简体中文) and MUST be a numbered list (分条): one finding per item, not a
 paragraph. Typical items: conclusion (`reason_code` / `exit_code` / did it
-start), sampled hosts/PIDs and CPU/RSS/IO, anomalies, then improvement
+start), sampled hosts/PIDs and CPU/RSS/IO/ethernet, anomalies, then improvement
 suggestions or a corrected command when relevant. Join items with `\n`
 inside the JSON string. JSON keys, `host`, `suspected_reason` (copied
 `reason_code`), paths, and shell commands stay as specified. Do not write
@@ -55,7 +58,7 @@ the interpretation in English.
 ```json
 {
   "host": "submit",
-  "summary": "1. 结论：…\n2. 采集：host_count/pid_count 与 CPU/RSS/IO …\n3. 异常：…\n4. 建议或改正命令：…",
+  "summary": "1. 结论：…\n2. 采集：host_count/pid_count 与 CPU/RSS/IO/以太网 …\n3. 异常：…\n4. 建议或改正命令：…",
   "suspected_reason": "<copy telemetry.reason_code>",
   "evidence_paths": ["<from the contract>"],
   "confidence": null,
@@ -76,7 +79,7 @@ in 简体中文 and propose a corrected `agent srun` line: compile to a shared p
 such as `/shared/agent-sidecar/examples/mpi_io_load` and pass that path after
 `--`.
 
-Load skills under `.opencode/skills/` (mpi-monitor timeseries, launch-fail, node-diag).
+Load skills under `.opencode/skills/` (mpi-monitor timeseries, eth-monitor, launch-fail, node-diag).
 
 ## Maintainer sync
 
