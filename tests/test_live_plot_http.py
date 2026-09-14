@@ -52,6 +52,8 @@ class TestLivePlotHttp(unittest.TestCase):
                 self.assertIn("RSS (MB)", body)
                 self.assertIn("read (B/s)", body)
                 self.assertIn("write (B/s)", body)
+                self.assertIn("eth_rx_bps", body)
+                self.assertIn("eth tx (B/s)", body)
                 self.assertIn("相对首个采样点", body)
                 self.assertNotIn("cdn.jsdelivr", body)
                 conn.request("GET", "/api/snapshot")

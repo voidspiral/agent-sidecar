@@ -76,6 +76,81 @@ class TestLivePlotIngest(unittest.TestCase):
             self.assertEqual(pts[-1], [1.0, 2.0])
             self.assertEqual(second["metrics"]["cpu_pct"][0]["label"], "cn1 pid 9")
 
+    def test_net_jsonl_overlays_without_pid(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            ensure_run_layout(run_dir)
+            (run_dir / "series" / "cn1_net.jsonl").write_text(
+                json.dumps(
+                    {
+                        "ts": 10.0,
+                        "host": "cn1",
+                        "iface": "eth0",
+                        "eth_rx_bps": 100.0,
+                        "eth_tx_bps": 20.0,
+                    }
+                )
+                + "\n"
+                + json.dumps(
+                    {
+                        "ts": 11.0,
+                        "host": "cn1",
+                        "iface": "eth0",
+                        "eth_rx_bps": 200.0,
+                        "eth_tx_bps": 40.0,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (run_dir / "series" / "cn2_net.jsonl").write_text(
+                json.dumps(
+                    {
+                        "ts": 10.0,
+                        "host": "cn2",
+                        "iface": "bond0",
+                        "eth_rx_bps": 5.0,
+                        "eth_tx_bps": 6.0,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            snap = LivePlotIngest(run_dir).poll()
+            rx = snap["metrics"]["eth_rx_bps"]
+            labels = [s["label"] for s in rx]
+            self.assertIn("cn1 eth0", labels)
+            self.assertIn("cn2 bond0", labels)
+            by_label = {s["label"]: s for s in rx}
+            self.assertEqual(by_label["cn1 eth0"]["points"], [[0.0, 100.0], [1.0, 200.0]])
+            self.assertEqual(snap["metrics"]["cpu_pct"], [])
+
+    def test_net_file_does_not_pollute_process_charts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            ensure_run_layout(run_dir)
+            (run_dir / "series" / "cn1_pid1.jsonl").write_text(
+                _line(10.0, "cn1", 1, 10.0, rank=0),
+                encoding="utf-8",
+            )
+            (run_dir / "series" / "cn1_net.jsonl").write_text(
+                json.dumps(
+                    {
+                        "ts": 10.0,
+                        "host": "cn1",
+                        "iface": "eth0",
+                        "eth_rx_bps": 9.0,
+                        "eth_tx_bps": 8.0,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            snap = LivePlotIngest(run_dir).poll()
+            self.assertEqual(len(snap["metrics"]["cpu_pct"]), 1)
+            self.assertEqual(snap["metrics"]["cpu_pct"][0]["label"], "cn1 r0")
+            self.assertEqual(len(snap["metrics"]["eth_rx_bps"]), 1)
+
     def test_empty_series_is_empty_not_error(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)

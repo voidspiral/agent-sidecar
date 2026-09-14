@@ -45,3 +45,31 @@ class TestPlotOptional(unittest.TestCase):
             self.assertEqual(written, [])
             self.assertTrue(sample.is_file())
             self.assertTrue(sample.read_text(encoding="utf-8").strip())
+
+    def test_net_jsonl_does_not_use_process_plotter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            series = run_dir / "series"
+            series.mkdir()
+            (series / "h1_net.jsonl").write_text(
+                json.dumps(
+                    {
+                        "ts": 1.0,
+                        "host": "h1",
+                        "iface": "eth0",
+                        "eth_rx_bps": 1.0,
+                        "eth_tx_bps": 2.0,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            seen: list[str] = []
+
+            def plotter(jsonl_path: Path, charts_dir: Path) -> list[Path]:
+                seen.append(jsonl_path.name)
+                return []
+
+            written = plot_run(run_dir, plotter=plotter, net_plotter=lambda _r: [])
+            self.assertEqual(written, [])
+            self.assertEqual(seen, [])

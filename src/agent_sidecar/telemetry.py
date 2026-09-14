@@ -82,10 +82,15 @@ def summarize_series(run_dir: Path) -> dict[str, Any]:
     rss: list[float] = []
     io_r = 0.0
     io_w = 0.0
+    eth_rx: list[float] = []
+    eth_tx: list[float] = []
     hosts: set[str] = set()
     pids = 0
     for path in files:
-        pids += 1
+        is_net = path.name.endswith("_net.jsonl")
+        is_pid = path.name.endswith(".jsonl") and "_pid" in path.name and not is_net
+        if is_pid:
+            pids += 1
         for line in path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
@@ -95,8 +100,14 @@ def summarize_series(run_dir: Path) -> dict[str, Any]:
                 cpu.append(float(rec["cpu_pct"]))
             if "rss_mb" in rec:
                 rss.append(float(rec["rss_mb"]))
-            io_r += float(rec.get("io_read_bps") or 0)
-            io_w += float(rec.get("io_write_bps") or 0)
+            if is_pid or "pid" in rec:
+                io_r += float(rec.get("io_read_bps") or 0)
+                io_w += float(rec.get("io_write_bps") or 0)
+            if is_net or "iface" in rec:
+                if rec.get("eth_rx_bps") is not None:
+                    eth_rx.append(float(rec["eth_rx_bps"]))
+                if rec.get("eth_tx_bps") is not None:
+                    eth_tx.append(float(rec["eth_tx_bps"]))
     return {
         "host_count": len(hosts - {""}),
         "pid_count": pids,
@@ -105,6 +116,8 @@ def summarize_series(run_dir: Path) -> dict[str, Any]:
         "rss_peak_mb": max(rss) if rss else None,
         "io_read_bps_sum": io_r,
         "io_write_bps_sum": io_w,
+        "eth_rx_bps_peak": max(eth_rx) if eth_rx else None,
+        "eth_tx_bps_peak": max(eth_tx) if eth_tx else None,
     }
 
 

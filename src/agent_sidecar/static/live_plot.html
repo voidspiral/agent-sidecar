@@ -12,12 +12,14 @@
 </head>
 <body>
   <h1>mpi-monitor overlay (submit host)</h1>
-  <p class="hint">横轴：相对首个采样点的已运行时间（秒）。纵轴：该图指标，单位见图内轴标题。图例：主机 + MPI rank（如 cn1 r0）。</p>
+  <p class="hint">横轴：相对首个采样点的已运行时间（秒）。纵轴：该图指标，单位见图内轴标题。进程图例：主机 + MPI rank（如 cn1 r0）。以太网图例：主机 + 网卡（如 cn1 eth0）。以太网是节点网卡计数，不是 MPI 消息。</p>
   <p id="status">loading…</p>
-  <div class="chart"><canvas id="cpu_pct"></canvas></div>
-  <div class="chart"><canvas id="rss_mb"></canvas></div>
-  <div class="chart"><canvas id="io_read_bps"></canvas></div>
-  <div class="chart"><canvas id="io_write_bps"></canvas></div>
+    <div class="chart"><canvas id="cpu_pct"></canvas></div>
+    <div class="chart"><canvas id="rss_mb"></canvas></div>
+    <div class="chart"><canvas id="io_read_bps"></canvas></div>
+    <div class="chart"><canvas id="io_write_bps"></canvas></div>
+    <div class="chart"><canvas id="eth_rx_bps"></canvas></div>
+    <div class="chart"><canvas id="eth_tx_bps"></canvas></div>
   <script src="/chart.umd.min.js"></script>
   <script>
     const METRICS = [
@@ -25,6 +27,8 @@
       ["rss_mb", "RSS MB", "RSS (MB)", false],
       ["io_read_bps", "IO read B/s", "read (B/s)", true],
       ["io_write_bps", "IO write B/s", "write (B/s)", true],
+      ["eth_rx_bps", "Eth rx B/s", "eth rx (B/s)", true],
+      ["eth_tx_bps", "Eth tx B/s", "eth tx (B/s)", true],
     ];
     const charts = {};
     function colors(i) {

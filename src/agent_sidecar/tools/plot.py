@@ -6,22 +6,37 @@ import json
 from pathlib import Path
 
 
-def plot_run(run_dir: Path, *, plotter=None) -> list[Path]:
+def plot_run(run_dir: Path, *, plotter=None, net_plotter=None) -> list[Path]:
     """Write charts if a plotter is available. Never delete JSONL."""
     series = run_dir / "series"
-    jsonl = list(series.glob("*.jsonl")) if series.is_dir() else []
+    pid_files = list(series.glob("*_pid*.jsonl")) if series.is_dir() else []
+    net_files = list(series.glob("*_net.jsonl")) if series.is_dir() else []
     if plotter is None:
         try:
             import matplotlib  # noqa: F401
         except ImportError:
-            return []
-        plotter = _default_plotter
+            plotter = None
+        else:
+            plotter = _default_plotter
     charts = run_dir / "charts"
     charts.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
-    for path in jsonl:
-        written.extend(plotter(path, charts))
+    if plotter is not None:
+        for path in pid_files:
+            written.extend(plotter(path, charts))
+    if net_files:
+        written.extend(_plot_net(run_dir, net_plotter=net_plotter))
     return written
+
+
+def _plot_net(run_dir: Path, *, net_plotter=None) -> list[Path]:
+    if net_plotter is not None:
+        return list(net_plotter(run_dir))
+    try:
+        from eth_monitor.plot import plot_run as eth_plot
+    except ImportError:
+        return []
+    return list(eth_plot(run_dir))
 
 
 def _default_plotter(jsonl_path: Path, charts_dir: Path) -> list[Path]:

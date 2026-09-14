@@ -98,6 +98,60 @@ class TestWrapTelemetry(unittest.TestCase):
             self.assertEqual(summary["io_write_bps_sum"], 10.0)
             self.assertEqual(summary["host_count"], 1)
             self.assertEqual(summary["pid_count"], 1)
+            self.assertIsNone(summary["eth_rx_bps_peak"])
+            self.assertIsNone(summary["eth_tx_bps_peak"])
+
+    def test_net_jsonl_does_not_inflate_pid_count(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+
+            def populate(out: Path) -> None:
+                series = out / "series"
+                series.mkdir(parents=True, exist_ok=True)
+                (series / "h1_pid10.jsonl").write_text(
+                    json.dumps(
+                        {
+                            "ts": 1,
+                            "host": "h1",
+                            "pid": 10,
+                            "cpu_pct": 10.0,
+                            "rss_mb": 100.0,
+                            "io_read_bps": 1.0,
+                            "io_write_bps": 1.0,
+                        }
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                (series / "h1_net.jsonl").write_text(
+                    json.dumps(
+                        {
+                            "ts": 1,
+                            "host": "h1",
+                            "iface": "eth0",
+                            "eth_rx_bps": 50.0,
+                            "eth_tx_bps": 7.0,
+                        }
+                    )
+                    + "\n"
+                    + json.dumps(
+                        {
+                            "ts": 2,
+                            "host": "h1",
+                            "iface": "eth0",
+                            "eth_rx_bps": 80.0,
+                            "eth_tx_bps": 9.0,
+                        }
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+
+            code, run_dir = _wrap(tmp, populate=populate)
+            self.assertEqual(code, 0)
+            summary = load_telemetry(run_dir)["summary"]
+            self.assertEqual(summary["pid_count"], 1)
+            self.assertEqual(summary["eth_rx_bps_peak"], 80.0)
+            self.assertEqual(summary["eth_tx_bps_peak"], 9.0)
 
     def test_empty_series_uses_nulls(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -107,6 +161,8 @@ class TestWrapTelemetry(unittest.TestCase):
             self.assertIsNone(summary["cpu_avg"])
             self.assertIsNone(summary["cpu_peak"])
             self.assertIsNone(summary["rss_peak_mb"])
+            self.assertIsNone(summary["eth_rx_bps_peak"])
+            self.assertIsNone(summary["eth_tx_bps_peak"])
             self.assertEqual(summary["host_count"], 0)
             self.assertEqual(summary["pid_count"], 0)
 

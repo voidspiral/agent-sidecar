@@ -50,7 +50,7 @@ def _parse_segfault(text: str) -> tuple[int | None, int | None]:
 
 def _series_brief(run_dir: Path) -> dict[str, Any]:
     series = run_dir / "series"
-    files = list(series.glob("*.jsonl")) if series.is_dir() else []
+    files = list(series.glob("*_pid*.jsonl")) if series.is_dir() else []
     if not files:
         return {"pid_count": 0, "note": "启动后很快段错误，序列不足"}
     cpu: list[float] = []
