@@ -62,7 +62,7 @@ class TestDefaultSkillsLoadAllPlugins(unittest.TestCase):
     def test_default_skills_are_all_node_plugins(self) -> None:
         self.assertEqual(
             DEFAULT_SKILLS,
-            ("proc-monitor", "mpi-scan", "slurm-tap", "node-diag"),
+            ("proc-monitor", "mpi-scan", "slurm-tap", "node-diag", "eth-monitor"),
         )
 
     def test_supervisor_starts_all_default_plugins_fail_soft(self) -> None:

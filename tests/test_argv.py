@@ -51,7 +51,7 @@ class TestArgv(unittest.TestCase):
         apply_profile_defaults(parsed.options)
         self.assertEqual(
             parsed.options.skills,
-            ("proc-monitor", "mpi-scan", "slurm-tap", "node-diag"),
+            ("proc-monitor", "mpi-scan", "slurm-tap", "node-diag", "eth-monitor"),
         )
         self.assertEqual(parsed.options.skills, DEFAULT_SKILLS)
 

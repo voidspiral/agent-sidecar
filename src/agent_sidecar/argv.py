@@ -32,7 +32,7 @@ BOOLEAN_AGENT_FLAGS = {
 }
 
 PROFILES = frozenset({"tools-only", "node-assist", "job-assist"})
-DEFAULT_SKILLS = ("proc-monitor", "mpi-scan", "slurm-tap", "node-diag")
+DEFAULT_SKILLS = ("proc-monitor", "mpi-scan", "slurm-tap", "node-diag", "eth-monitor")
 
 
 class AgentParseError(Exception):
