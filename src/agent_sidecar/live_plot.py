@@ -38,6 +38,8 @@ class LivePlotIngest:
         series = self.run_dir / "series"
         if series.is_dir():
             for path in sorted(series.glob("*_pid*.jsonl")):
+                if path.name.endswith("_net.jsonl"):
+                    continue
                 self._ingest_file(path, kind="pid")
             for path in sorted(series.glob("*_net.jsonl")):
                 self._ingest_file(path, kind="net")

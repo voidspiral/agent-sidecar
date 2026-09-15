@@ -19,7 +19,15 @@ MARKER_COLORS = {
 def plot_run(run_dir: Path, *, plotter=None, net_plotter=None) -> list[Path]:
     """Write charts if a plotter is available. Never delete JSONL."""
     series = run_dir / "series"
-    pid_files = list(series.glob("*_pid*.jsonl")) if series.is_dir() else []
+    pid_files = (
+        [
+            path
+            for path in series.glob("*_pid*.jsonl")
+            if not path.name.endswith("_net.jsonl")
+        ]
+        if series.is_dir()
+        else []
+    )
     net_files = list(series.glob("*_net.jsonl")) if series.is_dir() else []
     if plotter is None:
         try:

@@ -151,6 +151,39 @@ class TestLivePlotIngest(unittest.TestCase):
             self.assertEqual(snap["metrics"]["cpu_pct"][0]["label"], "cn1 r0")
             self.assertEqual(len(snap["metrics"]["eth_rx_bps"]), 1)
 
+    def test_pid_net_file_does_not_pollute_process_charts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            ensure_run_layout(run_dir)
+            (run_dir / "series" / "cn1_pid1.jsonl").write_text(
+                _line(10.0, "cn1", 1, 10.0, rank=0),
+                encoding="utf-8",
+            )
+            (run_dir / "series" / "cn1_pid1_net.jsonl").write_text(
+                json.dumps(
+                    {
+                        "ts": 10.5,
+                        "host": "cn1",
+                        "pid": 1,
+                        "tcp_rx_bps": 9.0,
+                        "tcp_tx_bps": 8.0,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            snap = LivePlotIngest(run_dir).poll()
+
+            self.assertEqual(
+                snap["metrics"]["cpu_pct"][0]["points"],
+                [[0.0, 10.0]],
+            )
+            self.assertEqual(
+                snap["metrics"]["rss_mb"][0]["points"],
+                [[0.0, 8.0]],
+            )
+
     def test_empty_series_is_empty_not_error(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)
