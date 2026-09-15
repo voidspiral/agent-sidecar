@@ -125,7 +125,7 @@ overlay page (all processes of one metric on one chart, legend by rank or
 From a laptop: `ssh -L 8765:127.0.0.1:8765 mn`. Replay a finished run:
 
 ```bash
-python3 -m agent_sidecar serve --run-dir /shared/agent-runs/<run_id>
+bash /shared/agent-sidecar/scripts/sidecar.sh serve --run-dir /shared/agent-runs/<run_id>
 ```
 
 `--agent-no-live-plot` or `AGENT_LIVE_PLOT=0` skips the server. Bind failure is

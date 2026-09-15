@@ -119,10 +119,10 @@ class TestLivePlotIngest(unittest.TestCase):
             snap = LivePlotIngest(run_dir).poll()
             rx = snap["metrics"]["eth_rx_bps"]
             labels = [s["label"] for s in rx]
-            self.assertIn("cn1 eth0", labels)
-            self.assertIn("cn2 bond0", labels)
+            self.assertIn("cn1 以太网 eth0", labels)
+            self.assertIn("cn2 以太网 bond0", labels)
             by_label = {s["label"]: s for s in rx}
-            self.assertEqual(by_label["cn1 eth0"]["points"], [[0.0, 100.0], [1.0, 200.0]])
+            self.assertEqual(by_label["cn1 以太网 eth0"]["points"], [[0.0, 100.0], [1.0, 200.0]])
             self.assertEqual(snap["metrics"]["cpu_pct"], [])
 
     def test_net_file_does_not_pollute_process_charts(self) -> None:

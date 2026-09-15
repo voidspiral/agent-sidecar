@@ -108,7 +108,7 @@ python3 -m agent_sidecar deploy --mpi-monitor /path/to/mpi-monitor --eth-monitor
 `ssh -L 8765:127.0.0.1:8765 mn`。结束后回放：
 
 ```bash
-python3 -m agent_sidecar serve --run-dir /shared/agent-runs/<run_id>
+bash /shared/agent-sidecar/scripts/sidecar.sh serve --run-dir /shared/agent-runs/<run_id>
 ```
 
 `--agent-no-live-plot` 或 `AGENT_LIVE_PLOT=0` 关闭。端口占用只记

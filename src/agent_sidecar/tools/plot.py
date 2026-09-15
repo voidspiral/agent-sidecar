@@ -41,14 +41,20 @@ def plot_run(run_dir: Path, *, plotter=None, net_plotter=None) -> list[Path]:
 
 def annotate_chart(ax: Any, xs: list[float], markers: list[dict[str, Any]]) -> None:
     """Draw in-range vertical markers on a matplotlib axis (absolute epoch x)."""
-    visible = markers_in_range(markers, list(xs))
-    if not visible:
+    samples = [float(x) for x in xs]
+    visible = markers_in_range(markers, samples)
+    if not visible or not samples:
         return
+    lo = min(samples)
+    hi = max(samples)
+    right = max(hi, max(float(rec["ts"]) for rec in visible))
+    if hasattr(ax, "set_xlim"):
+        ax.set_xlim(lo, right)
     _ymin, ymax = ax.get_ylim()
     for rec in visible:
         ts = float(rec["ts"])
         color = MARKER_COLORS.get(str(rec.get("reason_code") or ""), "#7f8c8d")
-        ax.axvline(ts, color=color, linestyle="--", linewidth=0.9, zorder=3)
+        ax.axvline(ts, color=color, linestyle="--", linewidth=1.4, zorder=3)
         label = f"{rec.get('host') or ''} {rec.get('reason_code') or ''}".strip()
         ax.text(
             ts,

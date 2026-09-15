@@ -58,6 +58,23 @@ class TestPlotMarkers(unittest.TestCase):
         self.assertEqual(xs, [2.0])
         labels = [call.args[2] for call in ax.text.call_args_list]
         self.assertEqual(labels, ["submit mpi_abort"])
+        ax.set_xlim.assert_called_once_with(1.0, 3.0)
+
+    def test_annotate_chart_keeps_abort_just_after_last_sample(self) -> None:
+        ax = mock.Mock()
+        ax.get_ylim.return_value = (0.0, 10.0)
+        markers = [
+            {
+                "ts": 15.08,
+                "reason_code": "mpi_abort",
+                "host": "submit",
+                "evidence_path": "events/stderr.tail",
+            }
+        ]
+        annotate_chart(ax, [1.0, 14.24], markers)
+        xs = [call.args[0] for call in ax.axvline.call_args_list]
+        self.assertEqual(xs, [15.08])
+        ax.set_xlim.assert_called_once_with(1.0, 15.08)
 
     def test_process_png_calls_axvline_for_in_range_markers(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

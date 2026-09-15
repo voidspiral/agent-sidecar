@@ -22,7 +22,7 @@ def series_label(host: str, pid: int, rank: int | None) -> str:
 
 
 def eth_label(host: str, iface: str) -> str:
-    return f"{host} {iface}"
+    return f"{host} 以太网 {iface}"
 
 
 class LivePlotIngest:

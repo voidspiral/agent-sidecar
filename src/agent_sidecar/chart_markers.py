@@ -161,19 +161,23 @@ def record_event_marker(run_dir: Path, event: Event, *, now: float | None = None
 
 
 def markers_in_range(
-    markers: Iterable[dict[str, Any]], xs: list[float]
+    markers: Iterable[dict[str, Any]],
+    xs: list[float],
+    *,
+    pad: float | None = None,
 ) -> list[dict[str, Any]]:
     samples = [float(x) for x in xs]
     if not samples:
         return []
     lo = min(samples)
     hi = max(samples)
+    extra = pad if pad is not None else max(2.0, (hi - lo) * 0.1)
     out: list[dict[str, Any]] = []
     for rec in markers:
         try:
             ts = float(rec["ts"])
         except (KeyError, TypeError, ValueError):
             continue
-        if lo <= ts <= hi:
+        if lo <= ts <= hi + extra:
             out.append(rec)
     return out

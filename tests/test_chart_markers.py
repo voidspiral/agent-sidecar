@@ -15,6 +15,7 @@ from pathlib import Path
 from agent_sidecar.chart_markers import (
     load_markers,
     marker_path,
+    markers_in_range,
     record_marker,
 )
 from agent_sidecar.spi import Event
@@ -138,3 +139,13 @@ class TestChartMarkers(unittest.TestCase):
                 rollup_reason_code(merged, user_exit=1),
                 rollup_reason_code(old, user_exit=1),
             )
+
+    def test_markers_in_range_keeps_detection_just_after_last_sample(self) -> None:
+        recs = markers_in_range(
+            [
+                {"ts": 15.08, "reason_code": "mpi_abort"},
+                {"ts": 50.0, "reason_code": "node_local"},
+            ],
+            [1.0, 14.24],
+        )
+        self.assertEqual([r["ts"] for r in recs], [15.08])
