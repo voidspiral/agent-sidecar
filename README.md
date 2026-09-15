@@ -192,7 +192,7 @@ nodes. Full index: [.opencode/skills.md](.opencode/skills.md).
 | Skill | When to use |
 |-------|-------------|
 | [mpi-monitor](.opencode/skills/mpi-monitor/SKILL.md) | Interpret CPU/RSS/IO from `series/` and `charts/` paths; empty series vs start failure |
-| [eth-monitor](.opencode/skills/eth-monitor/SKILL.md) | Interpret host ethernet rx/tx from `series/{host}_net.jsonl`; not MPI traffic |
+| [eth-monitor](.opencode/skills/eth-monitor/SKILL.md) | Interpret host ethernet and optional PID TCP from `series/{host}_net.jsonl` / `{host}_pid{pid}_net.jsonl`; not MPI traffic |
 | [launch-fail](.opencode/skills/launch-fail/SKILL.md) | `reason_code=execution_error` and `pid_count=0` (ENOENT / binary not on NFS) |
 | [mpi-abort](.opencode/skills/mpi-abort/SKILL.md) | `reason_code=mpi_abort` or `assist/analysis.json` pack `mpi_abort` |
 | [mpi-segfault](.opencode/skills/mpi-segfault/SKILL.md) | `reason_code=mpi_segfault` or `assist/analysis.json` pack `mpi_segfault` |

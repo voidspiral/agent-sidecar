@@ -5,7 +5,7 @@ Index only. OpenCode loads each skill from `.opencode/skills/<name>/SKILL.md`.
 | Skill | When to use |
 |-------|-------------|
 | [mpi-monitor](skills/mpi-monitor/SKILL.md) | CPU/RSS/IO JSONL under `series/`, optional PNG under `charts/`, collect via overlap supervisor |
-| [eth-monitor](skills/eth-monitor/SKILL.md) | Host ethernet rx/tx JSONL `series/{host}_net.jsonl`; not MPI bytes |
+| [eth-monitor](skills/eth-monitor/SKILL.md) | Host ethernet `series/{host}_net.jsonl`; optional PID TCP `series/{host}_pid{pid}_net.jsonl`; not MPI bytes |
 | [launch-fail](skills/launch-fail/SKILL.md) | `execution_error` with `pid_count=0` / missing executable / ENOENT |
 | [mpi-abort](skills/mpi-abort/SKILL.md) | `reason_code=mpi_abort` or `assist/analysis.json` pack `mpi_abort` |
 | [mpi-segfault](skills/mpi-segfault/SKILL.md) | `reason_code=mpi_segfault` or `assist/analysis.json` pack `mpi_segfault` |

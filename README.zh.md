@@ -186,7 +186,7 @@ job-assist 在登录节点加载，用来解读工具产物，不在计算节点
 | Skill | 何时用 |
 |-------|--------|
 | [mpi-monitor](.opencode/skills/mpi-monitor/SKILL.md) | 解读 `series/` 的 CPU/RSS/IO 与 `charts/` 路径；空 series 时区分采集失败与作业未启动 |
-| [eth-monitor](.opencode/skills/eth-monitor/SKILL.md) | 解读 `series/{host}_net.jsonl` 的以太网收发；不是 MPI 流量 |
+| [eth-monitor](.opencode/skills/eth-monitor/SKILL.md) | 解读主机以太网与可选 PID TCP：`series/{host}_net.jsonl` / `{host}_pid{pid}_net.jsonl`；不是 MPI 流量 |
 | [launch-fail](.opencode/skills/launch-fail/SKILL.md) | `reason_code=execution_error` 且 `pid_count=0`（ENOENT / 二进制不在 NFS） |
 | [mpi-abort](.opencode/skills/mpi-abort/SKILL.md) | `reason_code=mpi_abort` 或 `assist/analysis.json` 的 pack=`mpi_abort` |
 | [mpi-segfault](.opencode/skills/mpi-segfault/SKILL.md) | `reason_code=mpi_segfault` 或 `assist/analysis.json` 的 pack=`mpi_segfault` |
