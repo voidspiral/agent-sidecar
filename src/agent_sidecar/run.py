@@ -19,6 +19,8 @@ from agent_sidecar.argv import (
     apply_profile_defaults,
 )
 from agent_sidecar.assist import run_job_assist
+from agent_sidecar.chart_markers import record_marker
+from agent_sidecar.classify import classify_mpi_text
 from agent_sidecar.launch import LaunchPlan, execute_launch, plan_overlap
 from agent_sidecar.live_opencode import ATTACH_HINT, LiveWatcher
 from agent_sidecar.telemetry import (
@@ -47,6 +49,7 @@ _LLM_ENV_KEYS = (
 )
 
 DEFAULT_MPI_MONITOR_SRC = "/shared/mpi-monitor/src"
+DEFAULT_ETH_MONITOR_SRC = "/shared/eth-monitor/src"
 DEFAULT_JOB_DIR_SHARED = "/shared/agent-runs"
 AGENT_STOP_NAME = ".agent-stop"
 STDERR_TAIL_MAX = 8000
@@ -60,6 +63,25 @@ LAUNCHERS = {
     "prted",
     "prterun",
 }
+
+
+def _maybe_record_stderr_marker(dest: Path) -> None:
+    if dest.name != "stderr.tail" or dest.parent.name != "events":
+        return
+    try:
+        text = dest.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return
+    code = classify_mpi_text(text)
+    if not code:
+        return
+    record_marker(
+        dest.parent.parent,
+        reason_code=code,
+        host="submit",
+        evidence_path="events/stderr.tail",
+        message="mpi runtime fault",
+    )
 
 
 def resolve_output_dir(options: AgentOptions, env: dict[str, str]) -> Path:
@@ -102,6 +124,7 @@ def run_user_command(
         nonlocal since_flush
         dest.write_text("".join(chunks)[-STDERR_TAIL_MAX:], encoding="utf-8")
         since_flush = 0
+        _maybe_record_stderr_marker(dest)
 
     try:
         assert proc.stdout is not None
@@ -122,12 +145,14 @@ def run_user_command(
             proc.stdout.close()
     rc = proc.wait()
     dest.write_text("".join(chunks)[-STDERR_TAIL_MAX:], encoding="utf-8")
+    _maybe_record_stderr_marker(dest)
     return rc
 
 
 def sidecar_pythonpath(src_dir: str, env: dict[str, str]) -> str:
     mpi = env.get("AGENT_MPI_MONITOR_SRC") or DEFAULT_MPI_MONITOR_SRC
-    return f"{src_dir}:{mpi}"
+    eth = env.get("AGENT_ETH_MONITOR_SRC") or DEFAULT_ETH_MONITOR_SRC
+    return f"{src_dir}:{mpi}:{eth}"
 
 
 def agent_stop_path(run_dir: Path) -> Path:
@@ -171,6 +196,7 @@ def wrap_srun(
     env: dict[str, str],
     run_sidecar: Runner,
     run_user: Runner,
+    stop_sidecar: Callable[[Path], None] | None = None,
     overlap_ok: bool = True,
     collect_errors: dict[str, str] | None = None,
     plotter=None,
@@ -301,6 +327,8 @@ def wrap_srun(
             else:
                 os.environ["AGENT_QUIET"] = prev_quiet
     request_agent_stop(run_dir)
+    if stop_sidecar is not None:
+        stop_sidecar(run_dir)
     job_id = str(env.get("SLURM_JOB_ID") or os.environ.get("SLURM_JOB_ID") or "")
     if slurm_collect is not None or (job_id and job_id != "0"):
         from agent_sidecar.tools.slurm_tap import refresh_slurm_snapshot

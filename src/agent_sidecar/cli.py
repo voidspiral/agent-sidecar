@@ -29,6 +29,7 @@ from agent_sidecar.run import (
 )
 from agent_sidecar.spi import JobContext, start_supervisor
 from agent_sidecar.telemetry import load_telemetry
+from agent_sidecar.tools.eth_monitor import EthMonitor
 from agent_sidecar.tools.mpi_scan import MpiScan
 from agent_sidecar.tools.node_diag import NodeDiag
 from agent_sidecar.tools.proc_monitor import ProcMonitor
@@ -41,6 +42,7 @@ PLUGIN_FACTORIES = {
     "mpi-scan": MpiScan,
     "slurm-tap": SlurmTap,
     "node-diag": NodeDiag,
+    "eth-monitor": EthMonitor,
 }
 
 
@@ -110,6 +112,15 @@ def cmd_srun(
             _log("start user step: " + " ".join(argv))
         return run_user_command(argv)
 
+    def default_stop_sidecar(run_dir: Path) -> None:
+        request_agent_stop(run_dir)
+        proc = holder.pop("proc", None)
+        if proc is None:
+            return
+        if verbose:
+            _log(f"stop sidecar before telemetry (pid={proc.pid})")
+        reap_sidecar(proc, timeout=2.0)
+
     if verbose:
         _log(f"profile={parsed.options.profile} skills={parsed.options.skills or DEFAULT_SKILLS}")
         _log("passthrough=" + " ".join(parsed.passthrough))
@@ -122,13 +133,14 @@ def cmd_srun(
         env=dict(os.environ),
         run_sidecar=run_sidecar or default_sidecar,
         run_user=run_user or default_user,
+        stop_sidecar=default_stop_sidecar if run_sidecar is None else None,
         overlap_ok=overlap_ok,
         opencode_runner=opencode_runner,
         live_watcher=live_watcher,
         live_plotter=live_plotter,
         tty=tty,
     )
-    proc = holder.get("proc")
+    proc = holder.pop("proc", None)
     if proc is not None:
         request_agent_stop(run_dir)
         if verbose:
@@ -344,7 +356,7 @@ def cmd_deploy(argv: list[str]) -> int:
 
     p = argparse.ArgumentParser(
         prog="agent deploy",
-        description="Rsync this sidecar and an mpi-monitor tree onto NFS /shared.",
+        description="Rsync this sidecar plus mpi-monitor and eth-monitor trees onto NFS /shared.",
     )
     p.add_argument(
         "--mpi-monitor",
@@ -352,10 +364,15 @@ def cmd_deploy(argv: list[str]) -> int:
         help="mpi-monitor source tree (repo root or its src/ directory)",
     )
     p.add_argument(
-        "mpi_monitor_dir",
-        nargs="?",
+        "--eth-monitor",
         type=Path,
-        help="same as --mpi-monitor (scripts/deploy_shared.sh uses this)",
+        help="eth-monitor source tree (repo root or its src/ directory)",
+    )
+    p.add_argument(
+        "tree_dirs",
+        nargs="*",
+        type=Path,
+        help="mpi-monitor then eth-monitor dirs (scripts/deploy_shared.sh)",
     )
     p.add_argument("--sidecar", type=Path, default=None, help="agent-sidecar tree")
     p.add_argument("--shared", type=Path, default=None, help="NFS prefix (default /shared)")
@@ -364,13 +381,17 @@ def cmd_deploy(argv: list[str]) -> int:
         ns = p.parse_args(argv)
     except SystemExit as exc:
         return int(exc.code) if exc.code is not None else 2
-    mpi = ns.mpi_monitor or ns.mpi_monitor_dir
-    if mpi is None:
-        print("usage: agent deploy --mpi-monitor DIR", file=sys.stderr)
+    mpi = ns.mpi_monitor or (ns.tree_dirs[0] if ns.tree_dirs else None)
+    eth = ns.eth_monitor or (ns.tree_dirs[1] if len(ns.tree_dirs) > 1 else None)
+    if mpi is None or eth is None:
+        print(
+            "usage: agent deploy --mpi-monitor DIR --eth-monitor DIR",
+            file=sys.stderr,
+        )
         return 2
     sidecar = ns.sidecar or default_sidecar_root()
     shared = ns.shared or default_shared()
-    return run_deploy(sidecar, mpi, shared, dry_run=bool(ns.dry_run))
+    return run_deploy(sidecar, mpi, eth, shared, dry_run=bool(ns.dry_run))
 
 
 def cmd_serve(argv: list[str]) -> int:

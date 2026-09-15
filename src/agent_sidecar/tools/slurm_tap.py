@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
+from agent_sidecar.chart_markers import record_event_marker
 from agent_sidecar.classify import SUCCESS_STATES, classify_slurm_state
 from agent_sidecar.spi import Event, JobContext
 
@@ -144,9 +145,13 @@ class SlurmTap:
         state = str(parsed.get("JobState") or parsed.get("State") or "")
         code = classify_slurm_state(state)
         if code:
-            self._events = [
-                Event(reason_code=code, message=state, evidence_path=str(snap), host=ctx.host)
-            ]
+            ev = Event(
+                reason_code=code,
+                message=state,
+                evidence_path=str(snap),
+                host=ctx.host,
+            )
+            self._events = [record_event_marker(ctx.output_dir, ev)]
         else:
             self._events = []
         if not parsed and not self._injected:

@@ -135,7 +135,7 @@ class ProcMonitor:
             return
         series = self._ctx.output_dir / "series"
         if series.is_dir():
-            for path in sorted(series.glob("*.jsonl")):
+            for path in sorted(series.glob("*_pid*.jsonl")):
                 if path not in self._artifacts:
                     self._artifacts.append(path)
 

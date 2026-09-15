@@ -12,12 +12,14 @@
 </head>
 <body>
   <h1>mpi-monitor overlay (submit host)</h1>
-  <p class="hint">横轴：相对首个采样点的已运行时间（秒）。纵轴：该图指标，单位见图内轴标题。图例：主机 + MPI rank（如 cn1 r0）。</p>
+  <p class="hint">横轴：相对首个采样点的已运行时间（秒）。纵轴：该图指标，单位见图内轴标题。进程图例：主机 + MPI rank（如 cn1 r0）。以太网图例：主机 + 以太网 + 网卡（如 cn1 以太网 ens33）。以太网是节点网卡计数，不是 MPI 消息。点异常用竖线加标签框（host + reason_code）标在六张图上。</p>
   <p id="status">loading…</p>
-  <div class="chart"><canvas id="cpu_pct"></canvas></div>
-  <div class="chart"><canvas id="rss_mb"></canvas></div>
-  <div class="chart"><canvas id="io_read_bps"></canvas></div>
-  <div class="chart"><canvas id="io_write_bps"></canvas></div>
+    <div class="chart"><canvas id="cpu_pct"></canvas></div>
+    <div class="chart"><canvas id="rss_mb"></canvas></div>
+    <div class="chart"><canvas id="io_read_bps"></canvas></div>
+    <div class="chart"><canvas id="io_write_bps"></canvas></div>
+    <div class="chart"><canvas id="eth_rx_bps"></canvas></div>
+    <div class="chart"><canvas id="eth_tx_bps"></canvas></div>
   <script src="/chart.umd.min.js"></script>
   <script>
     const METRICS = [
@@ -25,8 +27,59 @@
       ["rss_mb", "RSS MB", "RSS (MB)", false],
       ["io_read_bps", "IO read B/s", "read (B/s)", true],
       ["io_write_bps", "IO write B/s", "write (B/s)", true],
+      ["eth_rx_bps", "以太网接收 B/s", "以太网接收 (B/s)", true],
+      ["eth_tx_bps", "以太网发送 B/s", "以太网发送 (B/s)", true],
     ];
     const charts = {};
+    let overlayMarkers = [];
+    const MARKER_COLORS = {
+      mpi_abort: "#e74c3c",
+      mpi_segfault: "#e67e22",
+      slurm_oom: "#9b59b6",
+      node_local: "#f1c40f",
+    };
+    const anomalyMarkerPlugin = {
+      id: "anomalyMarkers",
+      defaults: { items: [] },
+      afterDraw(chart, _args, options) {
+        const items = overlayMarkers.length ? overlayMarkers : ((options && options.items) || []);
+        if (!items.length) return;
+        const { ctx, chartArea, scales } = chart;
+        const xScale = scales.x;
+        if (!xScale || !chartArea) return;
+        items.forEach((m) => {
+          const x = xScale.getPixelForValue(m.x);
+          if (!Number.isFinite(x)) return;
+          if (x < chartArea.left - 2 || x > chartArea.right + 2) return;
+          const color = MARKER_COLORS[m.reason_code] || "#ecf0f1";
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([5, 3]);
+          ctx.beginPath();
+          ctx.moveTo(x, chartArea.top);
+          ctx.lineTo(x, chartArea.bottom);
+          ctx.stroke();
+          const label = String(m.host || "") + " " + String(m.reason_code || "");
+          ctx.font = "11px sans-serif";
+          const pad = 4;
+          const w = ctx.measureText(label).width + pad * 2;
+          const h = 16;
+          let boxX = x + 4;
+          let boxY = chartArea.top + 4;
+          if (boxX + w > chartArea.right) boxX = Math.max(chartArea.left, x - w - 4);
+          ctx.fillStyle = "rgba(0,0,0,0.75)";
+          ctx.fillRect(boxX, boxY, w, h);
+          ctx.strokeStyle = color;
+          ctx.setLineDash([]);
+          ctx.strokeRect(boxX, boxY, w, h);
+          ctx.fillStyle = "#eee";
+          ctx.fillText(label, boxX + pad, boxY + 12);
+          ctx.restore();
+        });
+      },
+    };
+    Chart.register(anomalyMarkerPlugin);
     function colors(i) {
       const h = (i * 47) % 360;
       return "hsl(" + h + " 70% 55%)";
@@ -42,7 +95,11 @@
           responsive: true,
           maintainAspectRatio: false,
           layout: { padding: { left: 4, right: 8 } },
-          plugins: { title: { display: true, text: title, color: "#eee" }, legend: { labels: { color: "#ddd" } } },
+          plugins: {
+            title: { display: true, text: title, color: "#eee" },
+            legend: { labels: { color: "#ddd" } },
+            anomalyMarkers: { items: [] },
+          },
           scales: {
             x: {
               type: "linear",
@@ -59,7 +116,16 @@
       });
       return charts[metric];
     }
+    function seriesXMax(series) {
+      let m = 0;
+      (series || []).forEach((s) => {
+        (s.points || []).forEach((p) => { if (p[0] > m) m = p[0]; });
+      });
+      return m;
+    }
     function applySnapshot(snap) {
+      overlayMarkers = snap.markers || [];
+      const markerMax = overlayMarkers.reduce((m, item) => Math.max(m, item.x || 0), 0);
       METRICS.forEach(([metric, title, yLabel, yZero]) => {
         const chart = ensureChart(metric, title, yLabel, yZero);
         const series = (snap.metrics && snap.metrics[metric]) || [];
@@ -73,11 +139,15 @@
           borderWidth: 1.5,
           tension: 0,
         }));
+        chart.options.plugins.anomalyMarkers = { items: overlayMarkers };
+        chart.options.scales.x.min = 0;
+        chart.options.scales.x.suggestedMax = Math.max(seriesXMax(series), markerMax);
         chart.update();
       });
       document.getElementById("status").textContent =
         "cap " + (snap.visible_cap || "") + " · series " +
-        ((snap.metrics && snap.metrics.cpu_pct && snap.metrics.cpu_pct.length) || 0);
+        ((snap.metrics && snap.metrics.cpu_pct && snap.metrics.cpu_pct.length) || 0) +
+        " · markers " + overlayMarkers.length;
     }
     async function tick() {
       try {

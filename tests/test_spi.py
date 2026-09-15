@@ -33,7 +33,7 @@ class FakeTool:
     def events(self) -> list[Event]:
         if not self._emit_anomaly:
             return []
-        return [Event(reason_code="node_local", message="anomaly")]
+        return [Event(reason_code="node_local", message="anomaly", ts=1.5)]
 
     def stop(self) -> None:
         self.stopped += 1
@@ -70,5 +70,7 @@ class TestSpi(unittest.TestCase):
         self.assertGreater(tool.sample_count, 1)
         self.assertEqual(sup.events(), [])
         tool._emit_anomaly = True
-        self.assertEqual(sup.events()[0].reason_code, "node_local")
+        ev = sup.events()[0]
+        self.assertEqual(ev.reason_code, "node_local")
+        self.assertEqual(ev.ts, 1.5)
         sup.stop()

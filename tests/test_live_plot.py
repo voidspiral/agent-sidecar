@@ -76,6 +76,81 @@ class TestLivePlotIngest(unittest.TestCase):
             self.assertEqual(pts[-1], [1.0, 2.0])
             self.assertEqual(second["metrics"]["cpu_pct"][0]["label"], "cn1 pid 9")
 
+    def test_net_jsonl_overlays_without_pid(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            ensure_run_layout(run_dir)
+            (run_dir / "series" / "cn1_net.jsonl").write_text(
+                json.dumps(
+                    {
+                        "ts": 10.0,
+                        "host": "cn1",
+                        "iface": "eth0",
+                        "eth_rx_bps": 100.0,
+                        "eth_tx_bps": 20.0,
+                    }
+                )
+                + "\n"
+                + json.dumps(
+                    {
+                        "ts": 11.0,
+                        "host": "cn1",
+                        "iface": "eth0",
+                        "eth_rx_bps": 200.0,
+                        "eth_tx_bps": 40.0,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (run_dir / "series" / "cn2_net.jsonl").write_text(
+                json.dumps(
+                    {
+                        "ts": 10.0,
+                        "host": "cn2",
+                        "iface": "bond0",
+                        "eth_rx_bps": 5.0,
+                        "eth_tx_bps": 6.0,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            snap = LivePlotIngest(run_dir).poll()
+            rx = snap["metrics"]["eth_rx_bps"]
+            labels = [s["label"] for s in rx]
+            self.assertIn("cn1 以太网 eth0", labels)
+            self.assertIn("cn2 以太网 bond0", labels)
+            by_label = {s["label"]: s for s in rx}
+            self.assertEqual(by_label["cn1 以太网 eth0"]["points"], [[0.0, 100.0], [1.0, 200.0]])
+            self.assertEqual(snap["metrics"]["cpu_pct"], [])
+
+    def test_net_file_does_not_pollute_process_charts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            ensure_run_layout(run_dir)
+            (run_dir / "series" / "cn1_pid1.jsonl").write_text(
+                _line(10.0, "cn1", 1, 10.0, rank=0),
+                encoding="utf-8",
+            )
+            (run_dir / "series" / "cn1_net.jsonl").write_text(
+                json.dumps(
+                    {
+                        "ts": 10.0,
+                        "host": "cn1",
+                        "iface": "eth0",
+                        "eth_rx_bps": 9.0,
+                        "eth_tx_bps": 8.0,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            snap = LivePlotIngest(run_dir).poll()
+            self.assertEqual(len(snap["metrics"]["cpu_pct"]), 1)
+            self.assertEqual(snap["metrics"]["cpu_pct"][0]["label"], "cn1 r0")
+            self.assertEqual(len(snap["metrics"]["eth_rx_bps"]), 1)
+
     def test_empty_series_is_empty_not_error(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)
@@ -83,6 +158,7 @@ class TestLivePlotIngest(unittest.TestCase):
             snap = LivePlotIngest(run_dir).poll()
             for metric in METRICS:
                 self.assertEqual(snap["metrics"][metric], [])
+            self.assertEqual(snap["markers"], [])
 
     def test_visible_cap_keeps_all_series(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -104,3 +180,97 @@ class TestLivePlotIngest(unittest.TestCase):
                 min(s["cpu_peak"] for s in visible),
                 max(s["cpu_peak"] for s in hidden),
             )
+
+    def test_markers_use_elapsed_seconds(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            ensure_run_layout(run_dir)
+            (run_dir / "series" / "cn1_pid1.jsonl").write_text(
+                _line(10.0, "cn1", 1, 10.0, rank=0)
+                + _line(12.0, "cn1", 1, 20.0, rank=0),
+                encoding="utf-8",
+            )
+            (run_dir / "events" / "submit_markers.jsonl").write_text(
+                json.dumps(
+                    {
+                        "ts": 11.0,
+                        "reason_code": "mpi_abort",
+                        "message": "abort",
+                        "evidence_path": "events/stderr.tail",
+                        "host": "submit",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            snap = LivePlotIngest(run_dir).poll()
+            self.assertEqual(len(snap["markers"]), 1)
+            marker = snap["markers"][0]
+            self.assertEqual(marker["reason_code"], "mpi_abort")
+            self.assertEqual(marker["host"], "submit")
+            self.assertEqual(marker["x"], 1.0)
+            self.assertEqual(marker["ts"], 11.0)
+
+    def test_markers_append_on_later_poll(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            ensure_run_layout(run_dir)
+            (run_dir / "series" / "cn1_pid1.jsonl").write_text(
+                _line(5.0, "cn1", 1, 1.0),
+                encoding="utf-8",
+            )
+            path = run_dir / "events" / "cn1_markers.jsonl"
+            path.write_text(
+                json.dumps(
+                    {
+                        "ts": 5.5,
+                        "reason_code": "node_local",
+                        "message": "oom",
+                        "evidence_path": "events/node-diag.txt",
+                        "host": "cn1",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            ingest = LivePlotIngest(run_dir)
+            first = ingest.poll()
+            self.assertEqual(len(first["markers"]), 1)
+            with path.open("a", encoding="utf-8") as fh:
+                fh.write(
+                    json.dumps(
+                        {
+                            "ts": 6.0,
+                            "reason_code": "slurm_oom",
+                            "message": "oom",
+                            "evidence_path": "events/slurm.json",
+                            "host": "cn1",
+                        }
+                    )
+                    + "\n"
+                )
+            second = ingest.poll()
+            codes = [m["reason_code"] for m in second["markers"]]
+            self.assertEqual(codes, ["node_local", "slurm_oom"])
+
+    def test_markers_without_series_do_not_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            ensure_run_layout(run_dir)
+            (run_dir / "events" / "submit_markers.jsonl").write_text(
+                json.dumps(
+                    {
+                        "ts": 99.0,
+                        "reason_code": "mpi_segfault",
+                        "message": "segv",
+                        "evidence_path": "events/stderr.tail",
+                        "host": "submit",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            snap = LivePlotIngest(run_dir).poll()
+            self.assertEqual(len(snap["markers"]), 1)
+            self.assertEqual(snap["markers"][0]["reason_code"], "mpi_segfault")
+            self.assertEqual(snap["markers"][0]["ts"], 99.0)

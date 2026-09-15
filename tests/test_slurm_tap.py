@@ -97,9 +97,17 @@ class TestSlurmTap(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tool, run_dir = _start(tmp, scontrol_text=SCONTROL)
             self.assertEqual(tool.events()[0].reason_code, "slurm_oom")
+            self.assertIsInstance(tool.events()[0].ts, float)
             snap = run_dir / "events" / "slurm.json"
             self.assertTrue(snap.is_file())
             self.assertEqual(json.loads(snap.read_text(encoding="utf-8"))["JobState"], "OUT_OF_MEMORY")
+            marker = run_dir / "events" / "h1_markers.jsonl"
+            self.assertTrue(marker.is_file())
+            rec = json.loads(marker.read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(rec["reason_code"], "slurm_oom")
+            anomalies = anomalies_from_artifacts(run_dir)
+            oom = [a for a in anomalies if a["reason_code"] == "slurm_oom"][0]
+            self.assertEqual(oom["ts"], rec["ts"])
 
     def test_constructed_abnormal_states_emit_events_and_anomalies(self) -> None:
         for state, expected in ABNORMAL_SCONTROL:
@@ -118,6 +126,7 @@ class TestSlurmTap(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tool, run_dir = _start(tmp, sacct_text=SACCT)
             self.assertEqual(tool.events()[0].reason_code, "node_fail")
+            self.assertFalse((run_dir / "events" / "h1_markers.jsonl").is_file())
             snap = json.loads((run_dir / "events" / "slurm.json").read_text(encoding="utf-8"))
             self.assertEqual(snap["State"], "NODE_FAIL")
             codes = [a["reason_code"] for a in anomalies_from_artifacts(run_dir)]

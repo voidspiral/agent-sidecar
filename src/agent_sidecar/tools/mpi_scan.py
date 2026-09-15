@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from agent_sidecar.chart_markers import record_event_marker
 from agent_sidecar.classify import classify_mpi_text
 from agent_sidecar.spi import Event, JobContext
 
@@ -29,9 +30,13 @@ class MpiScan:
         self._artifacts = [capture]
         code = classify_mpi_text(text)
         if code:
-            self._events = [
-                Event(reason_code=code, message="mpi runtime fault", evidence_path=str(capture), host=ctx.host)
-            ]
+            ev = Event(
+                reason_code=code,
+                message="mpi runtime fault",
+                evidence_path=str(capture),
+                host=ctx.host,
+            )
+            self._events = [record_event_marker(ctx.output_dir, ev)]
 
     def events(self) -> list[Event]:
         return list(self._events)

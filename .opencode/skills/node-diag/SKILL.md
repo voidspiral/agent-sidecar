@@ -32,6 +32,7 @@ or MPI abort text (`mpi-scan`).
 ```text
 {run_dir}/
   events/node-diag.txt      # oom_pids, cgroup_pids, oom_kill, fs_hang_lines
+  events/{host}_markers.jsonl  # first-seen node_local for chart overlays
   events/node_diag.err      # optional; dmesg/cgroup unreadable
 ```
 
@@ -44,6 +45,8 @@ Permission denied on `dmesg`/`/dev/kmsg` is a collect error, not a job fault.
 ## How to interpret
 
 1. Trust `reason_code` / `anomalies`. Do not scrape `/proc` or re-run `dmesg`.
+   Do **not** read PNG pixels; `node_local` chart time comes from
+   `events/{host}_markers.jsonl` when present.
 2. If `oom_pids` or `oom_kill` is set: the node OOM killer (or memcg) hit a
    task in this job. Suggest a higher `--mem` / cgroup limit, or less
    per-rank RSS. Keep `suspected_reason` as `node_local`.

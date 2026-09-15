@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from agent_sidecar.chart_markers import load_markers
 from agent_sidecar.classify import (
     classify_mpi_text,
     classify_node_diag_text,
@@ -82,10 +83,15 @@ def summarize_series(run_dir: Path) -> dict[str, Any]:
     rss: list[float] = []
     io_r = 0.0
     io_w = 0.0
+    eth_rx: list[float] = []
+    eth_tx: list[float] = []
     hosts: set[str] = set()
     pids = 0
     for path in files:
-        pids += 1
+        is_net = path.name.endswith("_net.jsonl")
+        is_pid = path.name.endswith(".jsonl") and "_pid" in path.name and not is_net
+        if is_pid:
+            pids += 1
         for line in path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
@@ -95,8 +101,14 @@ def summarize_series(run_dir: Path) -> dict[str, Any]:
                 cpu.append(float(rec["cpu_pct"]))
             if "rss_mb" in rec:
                 rss.append(float(rec["rss_mb"]))
-            io_r += float(rec.get("io_read_bps") or 0)
-            io_w += float(rec.get("io_write_bps") or 0)
+            if is_pid or "pid" in rec:
+                io_r += float(rec.get("io_read_bps") or 0)
+                io_w += float(rec.get("io_write_bps") or 0)
+            if is_net or "iface" in rec:
+                if rec.get("eth_rx_bps") is not None:
+                    eth_rx.append(float(rec["eth_rx_bps"]))
+                if rec.get("eth_tx_bps") is not None:
+                    eth_tx.append(float(rec["eth_tx_bps"]))
     return {
         "host_count": len(hosts - {""}),
         "pid_count": pids,
@@ -105,17 +117,40 @@ def summarize_series(run_dir: Path) -> dict[str, Any]:
         "rss_peak_mb": max(rss) if rss else None,
         "io_read_bps_sum": io_r,
         "io_write_bps_sum": io_w,
+        "eth_rx_bps_peak": max(eth_rx) if eth_rx else None,
+        "eth_tx_bps_peak": max(eth_tx) if eth_tx else None,
     }
+
+
+def _marker_ts_index(run_dir: Path) -> dict[tuple[str, str], float]:
+    idx: dict[tuple[str, str], float] = {}
+    for rec in load_markers(run_dir):
+        key = (str(rec.get("reason_code") or ""), str(rec.get("evidence_path") or ""))
+        if key[0] and key not in idx:
+            idx[key] = float(rec["ts"])
+    return idx
+
+
+def _with_marker_ts(
+    item: dict[str, Any], index: dict[tuple[str, str], float]
+) -> dict[str, Any]:
+    ts = index.get((str(item.get("reason_code") or ""), str(item.get("evidence_path") or "")))
+    if ts is None:
+        return item
+    out = dict(item)
+    out["ts"] = ts
+    return out
 
 
 def anomalies_from_artifacts(run_dir: Path) -> list[dict[str, Any]]:
     events_dir = run_dir / "events"
     if not events_dir.is_dir():
         return []
+    marker_ts = _marker_ts_index(run_dir)
     out: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
     for path in sorted(events_dir.iterdir()):
-        if not path.is_file():
+        if not path.is_file() or path.name.endswith("_markers.jsonl"):
             continue
         rel = str(path.relative_to(run_dir)) if path.is_relative_to(run_dir) else str(path)
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -132,7 +167,14 @@ def anomalies_from_artifacts(run_dir: Path) -> list[dict[str, Any]]:
                     if key not in seen:
                         seen.add(key)
                         out.append(
-                            {"reason_code": code, "message": state, "evidence_path": rel}
+                            _with_marker_ts(
+                                {
+                                    "reason_code": code,
+                                    "message": state,
+                                    "evidence_path": rel,
+                                },
+                                marker_ts,
+                            )
                         )
         mpi = classify_mpi_text(text)
         if mpi:
@@ -140,11 +182,14 @@ def anomalies_from_artifacts(run_dir: Path) -> list[dict[str, Any]]:
             if key not in seen:
                 seen.add(key)
                 out.append(
-                    {
-                        "reason_code": mpi,
-                        "message": "mpi runtime fault",
-                        "evidence_path": rel,
-                    }
+                    _with_marker_ts(
+                        {
+                            "reason_code": mpi,
+                            "message": "mpi runtime fault",
+                            "evidence_path": rel,
+                        },
+                        marker_ts,
+                    )
                 )
         if path.name.startswith("node-diag"):
             node = classify_node_diag_text(text)
@@ -153,11 +198,14 @@ def anomalies_from_artifacts(run_dir: Path) -> list[dict[str, Any]]:
                 if key not in seen:
                     seen.add(key)
                     out.append(
-                        {
-                            "reason_code": node,
-                            "message": "node-local oom",
-                            "evidence_path": rel,
-                        }
+                        _with_marker_ts(
+                            {
+                                "reason_code": node,
+                                "message": "node-local oom",
+                                "evidence_path": rel,
+                            },
+                            marker_ts,
+                        )
                     )
     return out
 

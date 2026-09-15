@@ -1,4 +1,4 @@
-"""Copy sidecar + mpi-monitor trees onto shared NFS and print PYTHONPATH."""
+"""Copy sidecar + mpi-monitor + eth-monitor trees onto shared NFS."""
 
 from __future__ import annotations
 
@@ -16,18 +16,22 @@ SyncTree = Callable[[Path, Path], None]
 
 
 class DeployError(Exception):
-    """Invalid sidecar or mpi-monitor tree."""
+    """Invalid sidecar, mpi-monitor, or eth-monitor tree."""
 
 
 @dataclass(frozen=True)
 class DeployPlan:
     sidecar_src: Path
     mpi_src: Path
+    eth_src: Path
     dest_sidecar: Path
     dest_mpi: Path
+    dest_eth: Path
     mpi_pythonpath: Path
+    eth_pythonpath: Path
     pythonpath: str
     agent_mpi_monitor_src: str
+    agent_eth_monitor_src: str
 
 
 def default_sidecar_root() -> Path:
@@ -51,6 +55,19 @@ def resolve_mpi_pythonpath(mpi_root: Path) -> Path:
     )
 
 
+def resolve_eth_pythonpath(eth_root: Path) -> Path:
+    root = eth_root.resolve()
+    if not root.is_dir():
+        raise DeployError(f"eth-monitor tree not found: {root}")
+    if (root / "eth_monitor" / "collect.py").is_file():
+        return root
+    if (root / "src" / "eth_monitor" / "collect.py").is_file():
+        return root / "src"
+    raise DeployError(
+        f"not an eth-monitor tree (need src/eth_monitor/collect.py): {root}"
+    )
+
+
 def resolve_sidecar_root(sidecar: Path) -> Path:
     root = sidecar.resolve()
     if (root / "src" / "agent_sidecar").is_dir():
@@ -58,27 +75,38 @@ def resolve_sidecar_root(sidecar: Path) -> Path:
     raise DeployError(f"not an agent-sidecar tree: {root}")
 
 
-def plan_deploy(sidecar: Path, mpi_monitor: Path, shared: Path) -> DeployPlan:
+def _dest_for_src_layout(src: Path, resolved: Path, dest_root: Path) -> tuple[Path, Path]:
+    if resolved == src:
+        dest = dest_root / "src"
+        return dest, dest
+    dest = dest_root
+    return dest, dest / resolved.relative_to(src)
+
+
+def plan_deploy(
+    sidecar: Path, mpi_monitor: Path, eth_monitor: Path, shared: Path
+) -> DeployPlan:
     sidecar_src = resolve_sidecar_root(sidecar)
     mpi_src = mpi_monitor.resolve()
-    resolved = resolve_mpi_pythonpath(mpi_src)
+    eth_src = eth_monitor.resolve()
+    mpi_resolved = resolve_mpi_pythonpath(mpi_src)
+    eth_resolved = resolve_eth_pythonpath(eth_src)
     dest_sidecar = shared / "agent-sidecar"
-    dest_mpi_root = shared / "mpi-monitor"
-    if resolved == mpi_src:
-        dest_mpi = dest_mpi_root / "src"
-        mpi_py = dest_mpi
-    else:
-        dest_mpi = dest_mpi_root
-        mpi_py = dest_mpi / resolved.relative_to(mpi_src)
-    pythonpath = f"{dest_sidecar / 'src'}:{mpi_py}"
+    dest_mpi, mpi_py = _dest_for_src_layout(mpi_src, mpi_resolved, shared / "mpi-monitor")
+    dest_eth, eth_py = _dest_for_src_layout(eth_src, eth_resolved, shared / "eth-monitor")
+    pythonpath = f"{dest_sidecar / 'src'}:{mpi_py}:{eth_py}"
     return DeployPlan(
         sidecar_src=sidecar_src,
         mpi_src=mpi_src,
+        eth_src=eth_src,
         dest_sidecar=dest_sidecar,
         dest_mpi=dest_mpi,
+        dest_eth=dest_eth,
         mpi_pythonpath=mpi_py,
+        eth_pythonpath=eth_py,
         pythonpath=pythonpath,
         agent_mpi_monitor_src=str(mpi_py),
+        agent_eth_monitor_src=str(eth_py),
     )
 
 
@@ -106,7 +134,9 @@ def format_plan(plan: DeployPlan, *, dry_run: bool) -> str:
             f"mode    : {mode}",
             f"sidecar : {plan.sidecar_src}  ->  {plan.dest_sidecar}",
             f"mpi-mon : {plan.mpi_src}  ->  {plan.dest_mpi}",
+            f"eth-mon : {plan.eth_src}  ->  {plan.dest_eth}",
             f"AGENT_MPI_MONITOR_SRC={plan.agent_mpi_monitor_src}",
+            f"AGENT_ETH_MONITOR_SRC={plan.agent_eth_monitor_src}",
             f"PYTHONPATH={plan.pythonpath}",
             f"wrap    : {plan.dest_sidecar}/scripts/sidecar.sh srun ...",
             f"analy   : {plan.dest_sidecar}/scripts/sidecar-analy.sh --log <run_dir> --code /path/to/src",
@@ -119,11 +149,14 @@ def _import_check(plan: DeployPlan, stdout: TextIO) -> int:
     env = {**os.environ, "PYTHONPATH": plan.pythonpath}
     script = (
         "import agent_sidecar\n"
-        "from mpi_monitor.collect import collect_loop\n"
-        "import mpi_monitor\n"
+        "from mpi_monitor.collect import collect_loop as mpi_loop\n"
+        "from eth_monitor.collect import collect_loop as eth_loop\n"
+        "import mpi_monitor, eth_monitor\n"
         "print('agent_sidecar', getattr(agent_sidecar, '__version__', '?'))\n"
         "print('mpi_monitor ', mpi_monitor.__file__)\n"
-        "print('collect_loop', collect_loop)\n"
+        "print('eth_monitor ', eth_monitor.__file__)\n"
+        "print('mpi_loop', mpi_loop)\n"
+        "print('eth_loop', eth_loop)\n"
     )
     proc = subprocess.run(
         [sys.executable, "-c", script],
@@ -141,7 +174,8 @@ def _import_check(plan: DeployPlan, stdout: TextIO) -> int:
         return 1
     stdout.write(
         "\nagent srun injects PYTHONPATH as "
-        "{sidecar}/src:{AGENT_MPI_MONITOR_SRC:-/shared/mpi-monitor/src}\n"
+        "{sidecar}/src:{AGENT_MPI_MONITOR_SRC:-/shared/mpi-monitor/src}"
+        ":{AGENT_ETH_MONITOR_SRC:-/shared/eth-monitor/src}\n"
         f"{plan.dest_sidecar}/scripts/sidecar.sh srun ...\n"
         f"{plan.dest_sidecar}/scripts/sidecar-analy.sh --log <run_dir> "
         "--code /path/to/src\n"
@@ -152,6 +186,7 @@ def _import_check(plan: DeployPlan, stdout: TextIO) -> int:
 def run_deploy(
     sidecar: Path,
     mpi_monitor: Path,
+    eth_monitor: Path,
     shared: Path,
     *,
     dry_run: bool = False,
@@ -160,7 +195,7 @@ def run_deploy(
 ) -> int:
     out = stdout or sys.stdout
     try:
-        plan = plan_deploy(sidecar, mpi_monitor, shared)
+        plan = plan_deploy(sidecar, mpi_monitor, eth_monitor, shared)
     except DeployError as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -172,4 +207,5 @@ def run_deploy(
     shared.mkdir(parents=True, exist_ok=True)
     sync(plan.sidecar_src, plan.dest_sidecar)
     sync(plan.mpi_src, plan.dest_mpi)
+    sync(plan.eth_src, plan.dest_eth)
     return _import_check(plan, out)

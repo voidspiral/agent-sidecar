@@ -41,8 +41,11 @@ interpreter). A token that appears only in later argv is ignored.
 | Telemetry | `{run_dir}/telemetry.json` |
 | Series | `{run_dir}/series/{host}_pid{pid}.jsonl` |
 | Charts | `{run_dir}/charts/{stem}_{cpu_pct\|rss_mb\|io_read_bps\|io_write_bps}.png` |
+| Markers | `{run_dir}/events/{host}_markers.jsonl`, `submit_markers.jsonl` |
 
 One PNG per process × metric when matplotlib is present. Missing matplotlib:
-skip PNG, keep JSONL, do not fail wrap.
+skip PNG, keep JSONL, do not fail wrap. Chart markers are first-seen point
+events (`mpi_abort`, `mpi_segfault`, `slurm_oom`, `node_local`); healthy
+CPU/IO jitter does not write markers.
 
 `--interval` default is `1.0` seconds (`--agent-interval` to override).

@@ -42,6 +42,48 @@ def _wrap(tmp: str, *, populate):
 
 
 class TestWrapTelemetry(unittest.TestCase):
+    def test_sidecar_stops_before_series_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            parsed = parse_agent_argv(
+                ["srun", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
+            )
+            order: list[str] = []
+
+            def stop_sidecar(run_dir: Path) -> None:
+                order.append("stop")
+                series = run_dir / "series"
+                series.mkdir(parents=True, exist_ok=True)
+                (series / "h1_net.jsonl").write_text(
+                    json.dumps(
+                        {
+                            "ts": 1.0,
+                            "host": "h1",
+                            "iface": "eth0",
+                            "eth_rx_bps": 10.0,
+                            "eth_tx_bps": 20.0,
+                        }
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+
+            code, run_dir, _plan = wrap_srun(
+                parsed,
+                env={},
+                run_sidecar=lambda _argv: 0,
+                run_user=lambda _argv: order.append("user") or 0,
+                stop_sidecar=stop_sidecar,
+                opencode_runner=noop_opencode,
+                live_watcher=NoWatch(),
+                live_plotter=NoPlot(),
+                tty=False,
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(order, ["user", "stop"])
+            summary = load_telemetry(run_dir)["summary"]
+            self.assertEqual(summary["eth_rx_bps_peak"], 10.0)
+            self.assertEqual(summary["eth_tx_bps_peak"], 20.0)
+
     def test_summary_from_series(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
 
@@ -98,6 +140,60 @@ class TestWrapTelemetry(unittest.TestCase):
             self.assertEqual(summary["io_write_bps_sum"], 10.0)
             self.assertEqual(summary["host_count"], 1)
             self.assertEqual(summary["pid_count"], 1)
+            self.assertIsNone(summary["eth_rx_bps_peak"])
+            self.assertIsNone(summary["eth_tx_bps_peak"])
+
+    def test_net_jsonl_does_not_inflate_pid_count(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+
+            def populate(out: Path) -> None:
+                series = out / "series"
+                series.mkdir(parents=True, exist_ok=True)
+                (series / "h1_pid10.jsonl").write_text(
+                    json.dumps(
+                        {
+                            "ts": 1,
+                            "host": "h1",
+                            "pid": 10,
+                            "cpu_pct": 10.0,
+                            "rss_mb": 100.0,
+                            "io_read_bps": 1.0,
+                            "io_write_bps": 1.0,
+                        }
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                (series / "h1_net.jsonl").write_text(
+                    json.dumps(
+                        {
+                            "ts": 1,
+                            "host": "h1",
+                            "iface": "eth0",
+                            "eth_rx_bps": 50.0,
+                            "eth_tx_bps": 7.0,
+                        }
+                    )
+                    + "\n"
+                    + json.dumps(
+                        {
+                            "ts": 2,
+                            "host": "h1",
+                            "iface": "eth0",
+                            "eth_rx_bps": 80.0,
+                            "eth_tx_bps": 9.0,
+                        }
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+
+            code, run_dir = _wrap(tmp, populate=populate)
+            self.assertEqual(code, 0)
+            summary = load_telemetry(run_dir)["summary"]
+            self.assertEqual(summary["pid_count"], 1)
+            self.assertEqual(summary["eth_rx_bps_peak"], 80.0)
+            self.assertEqual(summary["eth_tx_bps_peak"], 9.0)
 
     def test_empty_series_uses_nulls(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -107,6 +203,8 @@ class TestWrapTelemetry(unittest.TestCase):
             self.assertIsNone(summary["cpu_avg"])
             self.assertIsNone(summary["cpu_peak"])
             self.assertIsNone(summary["rss_peak_mb"])
+            self.assertIsNone(summary["eth_rx_bps_peak"])
+            self.assertIsNone(summary["eth_tx_bps_peak"])
             self.assertEqual(summary["host_count"], 0)
             self.assertEqual(summary["pid_count"], 0)
 
@@ -408,3 +506,20 @@ class TestWrapTelemetry(unittest.TestCase):
             self.assertEqual(rc, 0)
             self.assertTrue(seen["ok"], "stderr.tail should flush before process exit")
             self.assertIn("MPI_Abort", dest.read_text(encoding="utf-8"))
+            markers = dest.parent / "submit_markers.jsonl"
+            self.assertTrue(markers.is_file())
+            rec = json.loads(markers.read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(rec["reason_code"], "mpi_abort")
+            self.assertIsInstance(rec["ts"], float)
+
+    def test_healthy_stdio_does_not_write_markers(self) -> None:
+        from agent_sidecar.run import run_user_command
+
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "events" / "stderr.tail"
+            rc = run_user_command(
+                [sys.executable, "-c", "print('ok')"],
+                tail_path=dest,
+            )
+            self.assertEqual(rc, 0)
+            self.assertFalse((dest.parent / "submit_markers.jsonl").is_file())

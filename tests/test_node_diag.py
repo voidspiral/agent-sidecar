@@ -93,6 +93,9 @@ class TestNodeDiagPluginFixtures(unittest.TestCase):
             tool = NodeDiag(dmesg_text="Killed process 9 (rank)")
             tool.start(ctx)
             self.assertEqual(tool.events()[0].reason_code, "node_local")
+            self.assertIsInstance(tool.events()[0].ts, float)
+            marker = Path(tmp) / "events" / "h1_markers.jsonl"
+            self.assertTrue(marker.is_file())
             src = Path(__file__).resolve().parents[1] / "src" / "agent_sidecar" / "tools" / "node_diag.py"
             body = src.read_text(encoding="utf-8")
             self.assertNotIn("workflow_runner", body)

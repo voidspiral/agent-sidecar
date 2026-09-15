@@ -31,7 +31,10 @@ class TestMpiScan(unittest.TestCase):
             tool.start(ctx)
             ev = tool.events()
             self.assertEqual(ev[0].reason_code, "mpi_abort")
+            self.assertIsInstance(ev[0].ts, float)
             self.assertTrue(ev[0].evidence_path)
+            marker = Path(tmp) / "events" / "h1_markers.jsonl"
+            self.assertTrue(marker.is_file())
 
     def test_plugin_emits_segfault(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

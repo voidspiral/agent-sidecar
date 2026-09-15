@@ -32,7 +32,7 @@ class TestQuietReport(unittest.TestCase):
         self.assertTrue(parsed.options.quiet)
         self.assertEqual(
             parsed.options.skills,
-            ("proc-monitor", "mpi-scan", "slurm-tap", "node-diag"),
+            ("proc-monitor", "mpi-scan", "slurm-tap", "node-diag", "eth-monitor"),
         )
         env = {}
         got = resolve_output_dir(parsed.options, env)
