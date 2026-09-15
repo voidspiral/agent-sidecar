@@ -35,6 +35,19 @@ class TestLivePlotHttp(unittest.TestCase):
             (run_dir / "series" / "cn1_pid7.jsonl").write_text(
                 json.dumps(sample) + "\n", encoding="utf-8"
             )
+            (run_dir / "events" / "submit_markers.jsonl").write_text(
+                json.dumps(
+                    {
+                        "ts": 2.0,
+                        "reason_code": "mpi_abort",
+                        "message": "abort",
+                        "evidence_path": "events/stderr.tail",
+                        "host": "submit",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
             server = LivePlotServer(host="127.0.0.1", port=0)
             url = server.start(run_dir)
             try:
@@ -55,7 +68,11 @@ class TestLivePlotHttp(unittest.TestCase):
                 self.assertIn("eth_rx_bps", body)
                 self.assertIn("eth tx (B/s)", body)
                 self.assertIn("相对首个采样点", body)
+                self.assertIn("afterDraw", body)
+                self.assertIn("anomalyMarkers", body)
+                self.assertIn("reason_code", body)
                 self.assertNotIn("cdn.jsdelivr", body)
+                self.assertNotIn("chartjs-plugin-annotation", body)
                 conn.request("GET", "/api/snapshot")
                 snap_resp = conn.getresponse()
                 snap = json.loads(snap_resp.read().decode("utf-8"))
@@ -63,6 +80,10 @@ class TestLivePlotHttp(unittest.TestCase):
                 cpu = snap["metrics"]["cpu_pct"]
                 self.assertEqual(len(cpu), 1)
                 self.assertEqual(cpu[0]["label"], "cn1 r0")
+                self.assertEqual(len(snap["markers"]), 1)
+                self.assertEqual(snap["markers"][0]["reason_code"], "mpi_abort")
+                self.assertEqual(snap["markers"][0]["host"], "submit")
+                self.assertEqual(snap["markers"][0]["x"], 1.0)
                 conn.request("GET", "/chart.umd.min.js")
                 js = conn.getresponse()
                 self.assertEqual(js.status, 200)

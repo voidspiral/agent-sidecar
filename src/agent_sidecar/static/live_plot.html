@@ -12,7 +12,7 @@
 </head>
 <body>
   <h1>mpi-monitor overlay (submit host)</h1>
-  <p class="hint">横轴：相对首个采样点的已运行时间（秒）。纵轴：该图指标，单位见图内轴标题。进程图例：主机 + MPI rank（如 cn1 r0）。以太网图例：主机 + 网卡（如 cn1 eth0）。以太网是节点网卡计数，不是 MPI 消息。</p>
+  <p class="hint">横轴：相对首个采样点的已运行时间（秒）。纵轴：该图指标，单位见图内轴标题。进程图例：主机 + MPI rank（如 cn1 r0）。以太网图例：主机 + 网卡（如 cn1 eth0）。以太网是节点网卡计数，不是 MPI 消息。点异常用竖线加标签框（host + reason_code）标在六张图上。</p>
   <p id="status">loading…</p>
     <div class="chart"><canvas id="cpu_pct"></canvas></div>
     <div class="chart"><canvas id="rss_mb"></canvas></div>
@@ -31,6 +31,52 @@
       ["eth_tx_bps", "Eth tx B/s", "eth tx (B/s)", true],
     ];
     const charts = {};
+    const MARKER_COLORS = {
+      mpi_abort: "#e74c3c",
+      mpi_segfault: "#e67e22",
+      slurm_oom: "#9b59b6",
+      node_local: "#f1c40f",
+    };
+    const anomalyMarkerPlugin = {
+      id: "anomalyMarkers",
+      afterDraw(chart) {
+        const items = (chart.options.plugins && chart.options.plugins.anomalyMarkers && chart.options.plugins.anomalyMarkers.items) || [];
+        if (!items.length) return;
+        const { ctx, chartArea, scales } = chart;
+        const xScale = scales.x;
+        if (!xScale || !chartArea) return;
+        items.forEach((m) => {
+          const x = xScale.getPixelForValue(m.x);
+          if (x < chartArea.left || x > chartArea.right) return;
+          const color = MARKER_COLORS[m.reason_code] || "#ecf0f1";
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 3]);
+          ctx.beginPath();
+          ctx.moveTo(x, chartArea.top);
+          ctx.lineTo(x, chartArea.bottom);
+          ctx.stroke();
+          const label = String(m.host || "") + " " + String(m.reason_code || "");
+          ctx.font = "11px sans-serif";
+          const pad = 4;
+          const w = ctx.measureText(label).width + pad * 2;
+          const h = 16;
+          let boxX = x + 4;
+          let boxY = chartArea.top + 4;
+          if (boxX + w > chartArea.right) boxX = Math.max(chartArea.left, x - w - 4);
+          ctx.fillStyle = "rgba(0,0,0,0.75)";
+          ctx.fillRect(boxX, boxY, w, h);
+          ctx.strokeStyle = color;
+          ctx.setLineDash([]);
+          ctx.strokeRect(boxX, boxY, w, h);
+          ctx.fillStyle = "#eee";
+          ctx.fillText(label, boxX + pad, boxY + 12);
+          ctx.restore();
+        });
+      },
+    };
+    Chart.register(anomalyMarkerPlugin);
     function colors(i) {
       const h = (i * 47) % 360;
       return "hsl(" + h + " 70% 55%)";
@@ -46,7 +92,11 @@
           responsive: true,
           maintainAspectRatio: false,
           layout: { padding: { left: 4, right: 8 } },
-          plugins: { title: { display: true, text: title, color: "#eee" }, legend: { labels: { color: "#ddd" } } },
+          plugins: {
+            title: { display: true, text: title, color: "#eee" },
+            legend: { labels: { color: "#ddd" } },
+            anomalyMarkers: { items: [] },
+          },
           scales: {
             x: {
               type: "linear",
@@ -64,6 +114,7 @@
       return charts[metric];
     }
     function applySnapshot(snap) {
+      const markers = snap.markers || [];
       METRICS.forEach(([metric, title, yLabel, yZero]) => {
         const chart = ensureChart(metric, title, yLabel, yZero);
         const series = (snap.metrics && snap.metrics[metric]) || [];
@@ -77,11 +128,13 @@
           borderWidth: 1.5,
           tension: 0,
         }));
+        chart.options.plugins.anomalyMarkers = { items: markers };
         chart.update();
       });
       document.getElementById("status").textContent =
         "cap " + (snap.visible_cap || "") + " · series " +
-        ((snap.metrics && snap.metrics.cpu_pct && snap.metrics.cpu_pct.length) || 0);
+        ((snap.metrics && snap.metrics.cpu_pct && snap.metrics.cpu_pct.length) || 0) +
+        " · markers " + markers.length;
     }
     async function tick() {
       try {

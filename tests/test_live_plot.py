@@ -158,6 +158,7 @@ class TestLivePlotIngest(unittest.TestCase):
             snap = LivePlotIngest(run_dir).poll()
             for metric in METRICS:
                 self.assertEqual(snap["metrics"][metric], [])
+            self.assertEqual(snap["markers"], [])
 
     def test_visible_cap_keeps_all_series(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -179,3 +180,97 @@ class TestLivePlotIngest(unittest.TestCase):
                 min(s["cpu_peak"] for s in visible),
                 max(s["cpu_peak"] for s in hidden),
             )
+
+    def test_markers_use_elapsed_seconds(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            ensure_run_layout(run_dir)
+            (run_dir / "series" / "cn1_pid1.jsonl").write_text(
+                _line(10.0, "cn1", 1, 10.0, rank=0)
+                + _line(12.0, "cn1", 1, 20.0, rank=0),
+                encoding="utf-8",
+            )
+            (run_dir / "events" / "submit_markers.jsonl").write_text(
+                json.dumps(
+                    {
+                        "ts": 11.0,
+                        "reason_code": "mpi_abort",
+                        "message": "abort",
+                        "evidence_path": "events/stderr.tail",
+                        "host": "submit",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            snap = LivePlotIngest(run_dir).poll()
+            self.assertEqual(len(snap["markers"]), 1)
+            marker = snap["markers"][0]
+            self.assertEqual(marker["reason_code"], "mpi_abort")
+            self.assertEqual(marker["host"], "submit")
+            self.assertEqual(marker["x"], 1.0)
+            self.assertEqual(marker["ts"], 11.0)
+
+    def test_markers_append_on_later_poll(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            ensure_run_layout(run_dir)
+            (run_dir / "series" / "cn1_pid1.jsonl").write_text(
+                _line(5.0, "cn1", 1, 1.0),
+                encoding="utf-8",
+            )
+            path = run_dir / "events" / "cn1_markers.jsonl"
+            path.write_text(
+                json.dumps(
+                    {
+                        "ts": 5.5,
+                        "reason_code": "node_local",
+                        "message": "oom",
+                        "evidence_path": "events/node-diag.txt",
+                        "host": "cn1",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            ingest = LivePlotIngest(run_dir)
+            first = ingest.poll()
+            self.assertEqual(len(first["markers"]), 1)
+            with path.open("a", encoding="utf-8") as fh:
+                fh.write(
+                    json.dumps(
+                        {
+                            "ts": 6.0,
+                            "reason_code": "slurm_oom",
+                            "message": "oom",
+                            "evidence_path": "events/slurm.json",
+                            "host": "cn1",
+                        }
+                    )
+                    + "\n"
+                )
+            second = ingest.poll()
+            codes = [m["reason_code"] for m in second["markers"]]
+            self.assertEqual(codes, ["node_local", "slurm_oom"])
+
+    def test_markers_without_series_do_not_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            ensure_run_layout(run_dir)
+            (run_dir / "events" / "submit_markers.jsonl").write_text(
+                json.dumps(
+                    {
+                        "ts": 99.0,
+                        "reason_code": "mpi_segfault",
+                        "message": "segv",
+                        "evidence_path": "events/stderr.tail",
+                        "host": "submit",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            snap = LivePlotIngest(run_dir).poll()
+            self.assertEqual(len(snap["markers"]), 1)
+            self.assertEqual(snap["markers"][0]["reason_code"], "mpi_segfault")
+            self.assertEqual(snap["markers"][0]["ts"], 99.0)

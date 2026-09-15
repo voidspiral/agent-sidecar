@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from agent_sidecar.chart_markers import CHART_MARKER_CODES
+
 PROCESS_METRICS = ("cpu_pct", "rss_mb", "io_read_bps", "io_write_bps")
 ETH_METRICS = ("eth_rx_bps", "eth_tx_bps")
 METRICS = PROCESS_METRICS
@@ -30,6 +32,7 @@ class LivePlotIngest:
         self._rows: dict[tuple[str, int], dict[str, Any]] = {}
         self._eth_rows: dict[tuple[str, str], dict[str, Any]] = {}
         self._t0: float | None = None
+        self._markers: list[dict[str, Any]] = []
 
     def poll(self) -> dict[str, Any]:
         series = self.run_dir / "series"
@@ -38,6 +41,10 @@ class LivePlotIngest:
                 self._ingest_file(path, kind="pid")
             for path in sorted(series.glob("*_net.jsonl")):
                 self._ingest_file(path, kind="net")
+        events = self.run_dir / "events"
+        if events.is_dir():
+            for path in sorted(events.glob("*_markers.jsonl")):
+                self._ingest_file(path, kind="marker")
         return self.snapshot()
 
     def snapshot(self) -> dict[str, Any]:
@@ -104,7 +111,18 @@ class LivePlotIngest:
                 row = dict(payload)
                 row["points"] = [[round(ts - t0, 6), val] for ts, val in store]
                 grouped[metric].append(row)
-        return {"t0": t0, "visible_cap": VISIBLE_CAP, "metrics": grouped}
+        markers = []
+        for rec in self._markers:
+            markers.append(
+                {
+                    "reason_code": rec["reason_code"],
+                    "host": rec["host"],
+                    "ts": rec["ts"],
+                    "x": round(float(rec["ts"]) - t0, 6),
+                    "evidence_path": rec.get("evidence_path") or "",
+                }
+            )
+        return {"t0": t0, "visible_cap": VISIBLE_CAP, "metrics": grouped, "markers": markers}
 
     def _ingest_file(self, path: Path, *, kind: str) -> None:
         key = str(path)
@@ -129,6 +147,8 @@ class LivePlotIngest:
                 continue
             if kind == "net":
                 self._add_eth_sample(rec)
+            elif kind == "marker":
+                self._add_marker(rec)
             else:
                 self._add_sample(rec)
 
@@ -185,3 +205,28 @@ class LivePlotIngest:
         for name in ("rx", "tx"):
             if len(slot[name]) > MAX_POINTS:
                 slot[name] = slot[name][-MAX_POINTS:]
+
+    def _add_marker(self, rec: dict[str, Any]) -> None:
+        code = str(rec.get("reason_code") or "")
+        if code not in CHART_MARKER_CODES:
+            return
+        try:
+            ts = float(rec["ts"])
+        except (KeyError, TypeError, ValueError):
+            return
+        host = str(rec.get("host") or "")
+        evidence = str(rec.get("evidence_path") or "")
+        key = (code, evidence, host)
+        if any(
+            (m["reason_code"], m.get("evidence_path") or "", m["host"]) == key
+            for m in self._markers
+        ):
+            return
+        self._markers.append(
+            {
+                "ts": ts,
+                "reason_code": code,
+                "host": host,
+                "evidence_path": evidence,
+            }
+        )
