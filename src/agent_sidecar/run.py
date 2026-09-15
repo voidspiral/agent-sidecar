@@ -19,6 +19,8 @@ from agent_sidecar.argv import (
     apply_profile_defaults,
 )
 from agent_sidecar.assist import run_job_assist
+from agent_sidecar.chart_markers import record_marker
+from agent_sidecar.classify import classify_mpi_text
 from agent_sidecar.launch import LaunchPlan, execute_launch, plan_overlap
 from agent_sidecar.live_opencode import ATTACH_HINT, LiveWatcher
 from agent_sidecar.telemetry import (
@@ -63,6 +65,25 @@ LAUNCHERS = {
 }
 
 
+def _maybe_record_stderr_marker(dest: Path) -> None:
+    if dest.name != "stderr.tail" or dest.parent.name != "events":
+        return
+    try:
+        text = dest.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return
+    code = classify_mpi_text(text)
+    if not code:
+        return
+    record_marker(
+        dest.parent.parent,
+        reason_code=code,
+        host="submit",
+        evidence_path="events/stderr.tail",
+        message="mpi runtime fault",
+    )
+
+
 def resolve_output_dir(options: AgentOptions, env: dict[str, str]) -> Path:
     raw = options.output_dir or env.get("AGENT_JOB_DIR")
     if not raw:
@@ -103,6 +124,7 @@ def run_user_command(
         nonlocal since_flush
         dest.write_text("".join(chunks)[-STDERR_TAIL_MAX:], encoding="utf-8")
         since_flush = 0
+        _maybe_record_stderr_marker(dest)
 
     try:
         assert proc.stdout is not None
@@ -123,6 +145,7 @@ def run_user_command(
             proc.stdout.close()
     rc = proc.wait()
     dest.write_text("".join(chunks)[-STDERR_TAIL_MAX:], encoding="utf-8")
+    _maybe_record_stderr_marker(dest)
     return rc
 
 

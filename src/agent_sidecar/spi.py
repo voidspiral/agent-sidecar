@@ -27,6 +27,7 @@ class Event:
     message: str = ""
     evidence_path: str | None = None
     host: str | None = None
+    ts: float | None = None
 
 
 class ToolPlugin(Protocol):

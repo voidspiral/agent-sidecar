@@ -464,3 +464,20 @@ class TestWrapTelemetry(unittest.TestCase):
             self.assertEqual(rc, 0)
             self.assertTrue(seen["ok"], "stderr.tail should flush before process exit")
             self.assertIn("MPI_Abort", dest.read_text(encoding="utf-8"))
+            markers = dest.parent / "submit_markers.jsonl"
+            self.assertTrue(markers.is_file())
+            rec = json.loads(markers.read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(rec["reason_code"], "mpi_abort")
+            self.assertIsInstance(rec["ts"], float)
+
+    def test_healthy_stdio_does_not_write_markers(self) -> None:
+        from agent_sidecar.run import run_user_command
+
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "events" / "stderr.tail"
+            rc = run_user_command(
+                [sys.executable, "-c", "print('ok')"],
+                tail_path=dest,
+            )
+            self.assertEqual(rc, 0)
+            self.assertFalse((dest.parent / "submit_markers.jsonl").is_file())

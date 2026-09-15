@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from agent_sidecar.chart_markers import record_event_marker
 from agent_sidecar.spi import Event, JobContext
 
 OOM_RE = re.compile(r"Killed process (\d+)|Out of memory", re.IGNORECASE)
@@ -359,14 +360,13 @@ class NodeDiag:
             )
             emit = bool(oom_pids) or grew or hang_only
         if emit:
-            self._events = [
-                Event(
-                    reason_code="node_local",
-                    message=f"oom pids={oom_pids}",
-                    evidence_path=str(dest),
-                    host=ctx.host,
-                )
-            ]
+            ev = Event(
+                reason_code="node_local",
+                message=f"oom pids={oom_pids}",
+                evidence_path=str(dest),
+                host=ctx.host,
+            )
+            self._events = [record_event_marker(ctx.output_dir, ev)]
         else:
             self._events = []
 
