@@ -38,6 +38,8 @@ Do **not** run `mpi-monitor wrap`. Do **not** SSH a collector. Matching is
   telemetry.json
   series/{host}_pid{pid}.jsonl
   charts/{stem}_{cpu_pct|rss_mb|io_read_bps|io_write_bps}.png
+  events/{host}_markers.jsonl        # first-seen point anomalies (optional)
+  events/submit_markers.jsonl        # submit-host MPI abort/segfault (optional)
   events/mpi_monitor_import.err    # collect import failed (optional)
 ```
 
@@ -51,12 +53,15 @@ Launchers are never sampled: `srun`, `mpirun`, `mpiexec`, `orted`, `orterun`,
 
 1. Trust `telemetry.json` `summary` and `reason_code`. Do not scrape `/proc`.
 2. Name chart paths from `evidence_paths`. Do **not** generate images; models
-   used here are text-only.
+   used here are text-only. Do **not** read PNG pixels. Vertical markers on
+   charts come from `*_markers.jsonl` / `anomalies[].ts`, not from looking at
+   the image.
 3. Empty series with user exit 0 and `reason_code=ok` may mean `--match` missed
    the binary or mpi-monitor was not on `PYTHONPATH` (`mpi_monitor_import`).
 4. Empty series with `execution_error` and `pid_count=0` is a **start failure**
    — use the launch-fail skill, not an IO/CPU story.
 5. Missing matplotlib: JSONL stays; PNG may be absent. That is not a job fault.
+   Missing marker files on old runs is also not a job fault.
 
 ## PYTHONPATH
 

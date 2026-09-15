@@ -99,7 +99,10 @@ python3 -m agent_sidecar deploy --mpi-monitor /path/to/mpi-monitor --eth-monitor
 `events/mpi_monitor_import.err` 或 `events/eth_monitor_import.err`。
 
 有 matplotlib 时 wrap 会在 `charts/` 写出 **每个 pid × 指标** 一张 PNG。
-作业运行期间，提交端还会起 live overlay 页（同一指标下所有进程叠在一张图，
+首次检测到的点异常（`mpi_abort`、`mpi_segfault`、`slurm_oom`、`node_local`）
+写入 `events/{host}_markers.jsonl`（提交端为 `events/submit_markers.jsonl`），
+并在 PNG 与 live overlay 上用竖线+标签标出。健康的 CPU/RSS/IO/以太网抖动
+**不会**生成 marker。作业运行期间，提交端还会起 live overlay 页（同一指标下所有进程叠在一张图，
 图例用 rank 或 `host pid`）。quiet 会打印
 `[agent] live plot: http://127.0.0.1:8765`。笔记本访问：
 `ssh -L 8765:127.0.0.1:8765 mn`。结束后回放：
@@ -166,9 +169,9 @@ OpenCode skills：`.opencode/skills/`（索引见 [.opencode/skills.md](.opencod
 |------|------|------|
 | `proc-monitor` | 按 `--match` 采样用户进程 CPU/RSS/IO（调用 mpi-monitor `collect_loop`） | `series/{host}_pid{pid}.jsonl`；有 matplotlib 时还有 `charts/*.png` |
 | `eth-monitor` | 采样节点以太网 rx/tx（调用 eth-monitor `collect_loop`） | `series/{host}_net.jsonl`；有 matplotlib 时还有以太网 PNG |
-| `mpi-scan` | 扫 MPI/启动器 stderr 的 abort 模式 | `events/stderr.tail` |
-| `slurm-tap` | 解析 scontrol/sstat/sacct 作业状态 | `events/slurm.json` |
-| `node-diag` | 计算节点采集本机 OOM / cgroup / hang，`stop` 时再采一次 | `events/node-diag.txt` |
+| `mpi-scan` | 扫 MPI/启动器 stderr 的 abort 模式 | `events/stderr.tail`；首次 abort/segfault 写 `events/submit_markers.jsonl` |
+| `slurm-tap` | 解析 scontrol/sstat/sacct 作业状态 | `events/slurm.json`；首次 `slurm_oom` 写 `events/{host}_markers.jsonl` |
+| `node-diag` | 计算节点采集本机 OOM / cgroup / hang，`stop` 时再采一次 | `events/node-diag.txt`；首次 `node_local` 写 `events/{host}_markers.jsonl` |
 
 启动器进程（`srun`、`mpirun`、`orted` 等）不会被 `proc-monitor` 采样。
 

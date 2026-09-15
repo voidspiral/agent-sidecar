@@ -115,7 +115,11 @@ to export `PYTHONPATH` for wrapped jobs. Missing mpi-monitor or eth-monitor
 is fail-soft (`events/mpi_monitor_import.err`, `events/eth_monitor_import.err`).
 
 Wrap writes optional PNG under `charts/` when matplotlib is installed (one file
-per pid × metric). While the job runs, the submit host also serves a live
+per pid × metric). First-seen point anomalies (`mpi_abort`, `mpi_segfault`,
+`slurm_oom`, `node_local`) are stored as `events/{host}_markers.jsonl` (submit
+host: `events/submit_markers.jsonl`) and drawn as vertical labels on those PNGs
+and on the live overlay. Healthy CPU/RSS/IO/ethernet jitter does **not** create
+markers. While the job runs, the submit host also serves a live
 overlay page (all processes of one metric on one chart, legend by rank or
 `host pid`). Quiet wrap prints `[agent] live plot: http://127.0.0.1:8765`.
 From a laptop: `ssh -L 8765:127.0.0.1:8765 mn`. Replay a finished run:
@@ -171,9 +175,9 @@ Default is all five node tools:
 |------|------|-----------|
 | `proc-monitor` | Sample matched user PIDs for CPU/RSS/IO via mpi-monitor `collect_loop` | `series/{host}_pid{pid}.jsonl`; `charts/*.png` when matplotlib is present |
 | `eth-monitor` | Sample host ethernet rx/tx via eth-monitor `collect_loop` | `series/{host}_net.jsonl`; ethernet PNG when matplotlib is present |
-| `mpi-scan` | Scan MPI/launcher stderr for abort patterns | `events/stderr.tail` |
-| `slurm-tap` | Parse scontrol/sstat/sacct job state | `events/slurm.json` |
-| `node-diag` | Collect local OOM / cgroup / hang on the compute node; refresh on `stop` | `events/node-diag.txt` |
+| `mpi-scan` | Scan MPI/launcher stderr for abort patterns | `events/stderr.tail`; `events/submit_markers.jsonl` on first abort/segfault |
+| `slurm-tap` | Parse scontrol/sstat/sacct job state | `events/slurm.json`; `events/{host}_markers.jsonl` on first `slurm_oom` |
+| `node-diag` | Collect local OOM / cgroup / hang on the compute node; refresh on `stop` | `events/node-diag.txt`; `events/{host}_markers.jsonl` on first `node_local` |
 
 Launchers (`srun`, `mpirun`, `orted`, …) are never sampled by `proc-monitor`.
 

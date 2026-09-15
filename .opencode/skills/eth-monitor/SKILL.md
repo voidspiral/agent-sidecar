@@ -56,6 +56,9 @@ Live TCP sockets at sample time only. See [reference.md](reference.md).
 ## How to interpret
 
 1. Trust `summary.eth_*_peak` for NIC rates. Do not embed every JSONL line.
+   Healthy ethernet jitter is not a chart marker and does not start live
+   OpenCode. Marker overlays on eth/TCP PNGs come from job point events
+   (`mpi_abort` / `mpi_segfault` / `slurm_oom` / `node_local`), not NIC rates.
 2. Zero ethernet with busy CPU/IO often means MPI or Lustre ran on IB, not
    that the job was idle.
 3. `tcp_*_bps` are kernel TCP payload-class counters. They are typically
@@ -67,7 +70,8 @@ Live TCP sockets at sample time only. See [reference.md](reference.md).
    means tx used `bytes_acked` fallback — treat rates as approximate.
 6. Healthy ethernet or TCP jitter is **not** a live OpenCode trigger.
 7. Missing eth-monitor on PYTHONPATH writes `eth_monitor_import.err` (fail-soft).
-8. Do **not** generate images. Name PNG paths from `evidence_paths` only.
+8. Do **not** generate images or read PNG pixels. Name PNG paths from
+   `evidence_paths` only.
 
 ## PYTHONPATH
 
