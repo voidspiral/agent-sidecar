@@ -16,7 +16,10 @@ The overlap supervisor on each compute node runs `eth-monitor`, which calls
 `eth_monitor.collect.collect_loop` until stop. Host ethernet JSONL is always
 host + iface (not pid). When `collect_loop` is given `match` (same
 `--match` / `--agent-match` as proc-monitor), the same loop also writes
-per-PID TCP series. Do **not** treat either curve as MPI message rates.
+per-PID TCP series. In agent-sidecar, host and PID network sampling starts
+when the target appears and stops after it disappears, so later unrelated
+node traffic is not attributed to the job. Do **not** treat either curve as
+MPI message rates.
 Do **not** scrape `/proc/net` or open netlink from the model.
 
 Do **not** confuse `{host}_pid{pid}_net.jsonl` (TCP bytes) with mpi-monitor
@@ -50,8 +53,9 @@ Host JSONL: `ts`, `host`, `iface`, `eth_rx_bps`, `eth_tx_bps` (optional
 `eth_rx_pps` / `eth_tx_pps`). Bond slaves, loopback, veth, and InfiniBand
 names are excluded. First sample rates are 0.
 
-Pid-net JSONL: `ts`, `host`, `pid`, `comm`, `tcp_rx_bps`, `tcp_tx_bps`.
-Live TCP sockets at sample time only. See [reference.md](reference.md).
+Pid-net JSONL: `ts`, `host`, `pid`, `comm`, `process_starttime_ticks`,
+`tcp_rx_bps`, `tcp_tx_bps`. Live TCP sockets at sample time only.
+See [reference.md](reference.md).
 
 ## How to interpret
 
@@ -61,16 +65,21 @@ Live TCP sockets at sample time only. See [reference.md](reference.md).
    (`mpi_abort` / `mpi_segfault` / `slurm_oom` / `node_local`), not NIC rates.
 2. Zero ethernet with busy CPU/IO often means MPI or Lustre ran on IB, not
    that the job was idle.
-3. `tcp_*_bps` are kernel TCP payload-class counters. They are typically
-   smaller than `eth_*_bps` (headers, other tenants, non-TCP). They are
-   **not** NIC rates and **not** MPI bytes.
-4. Missing pid-net files means match was omitted or no PID matched; that is
+3. Host ethernet and per-PID TCP are **different counters**. PID rates are
+   not a split of the NIC curve. `tcp_*_bps` are kernel TCP payload-class
+   sock_diag deltas (per live socket, then summed). They are typically
+   smaller than `eth_*_bps`. They are **not** NIC rates and **not** MPI bytes.
+4. Shared sockets among matched PIDs belong to the **lowest PID**. A reused
+   PID (`process_starttime_ticks` changed) starts at 0 again. A new live
+   socket on a known process counts its current cumulative bytes this
+   interval; a closed socket is dropped (last interval lost).
+5. Missing pid-net files means match was omitted or no PID matched; that is
    not a job fault by itself. Do not invent ranks or TCP samples.
-5. Short TCP connections, UDP, and IB/RDMA are not in pid-net. `tcp_info_partial`
+6. Short TCP connections, UDP, and IB/RDMA are not in pid-net. `tcp_info_partial`
    means tx used `bytes_acked` fallback — treat rates as approximate.
-6. Healthy ethernet or TCP jitter is **not** a live OpenCode trigger.
-7. Missing eth-monitor on PYTHONPATH writes `eth_monitor_import.err` (fail-soft).
-8. Do **not** generate images or read PNG pixels. Name PNG paths from
+7. Healthy ethernet or TCP jitter is **not** a live OpenCode trigger.
+8. Missing eth-monitor on PYTHONPATH writes `eth_monitor_import.err` (fail-soft).
+9. Do **not** generate images or read PNG pixels. Name PNG paths from
    `evidence_paths` only.
 
 ## PYTHONPATH

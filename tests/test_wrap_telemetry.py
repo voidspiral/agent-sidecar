@@ -42,6 +42,48 @@ def _wrap(tmp: str, *, populate):
 
 
 class TestWrapTelemetry(unittest.TestCase):
+    def test_sidecar_stops_before_series_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            parsed = parse_agent_argv(
+                ["srun", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
+            )
+            order: list[str] = []
+
+            def stop_sidecar(run_dir: Path) -> None:
+                order.append("stop")
+                series = run_dir / "series"
+                series.mkdir(parents=True, exist_ok=True)
+                (series / "h1_net.jsonl").write_text(
+                    json.dumps(
+                        {
+                            "ts": 1.0,
+                            "host": "h1",
+                            "iface": "eth0",
+                            "eth_rx_bps": 10.0,
+                            "eth_tx_bps": 20.0,
+                        }
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+
+            code, run_dir, _plan = wrap_srun(
+                parsed,
+                env={},
+                run_sidecar=lambda _argv: 0,
+                run_user=lambda _argv: order.append("user") or 0,
+                stop_sidecar=stop_sidecar,
+                opencode_runner=noop_opencode,
+                live_watcher=NoWatch(),
+                live_plotter=NoPlot(),
+                tty=False,
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(order, ["user", "stop"])
+            summary = load_telemetry(run_dir)["summary"]
+            self.assertEqual(summary["eth_rx_bps_peak"], 10.0)
+            self.assertEqual(summary["eth_tx_bps_peak"], 20.0)
+
     def test_summary_from_series(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
 

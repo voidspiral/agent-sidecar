@@ -43,7 +43,27 @@ class TestEthMonitor(unittest.TestCase):
             self.assertEqual(seen["interval"], 0.5)
             self.assertEqual(seen["output_dir"], ctx.output_dir)
             self.assertTrue(Path(seen["stop_file"]).is_file())
-            self.assertNotIn("match", seen)
+            self.assertEqual(seen["match"], None)
+            self.assertTrue(seen["stop_when_match_gone"])
+
+    def test_job_match_is_forwarded_to_bound_network_samples(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            seen: dict[str, object] = {}
+
+            def loop(**kwargs):
+                seen.update(kwargs)
+
+            ctx = JobContext(
+                job_id="1",
+                host="cn1",
+                output_dir=Path(tmp),
+                match="mpi_fault_abort",
+            )
+            tool = EthMonitor(collect_loop_fn=loop)
+            tool.start(ctx)
+            tool.stop()
+            self.assertEqual(seen["match"], "mpi_fault_abort")
+            self.assertTrue(seen["stop_when_match_gone"])
 
     def test_stop_lists_net_jsonl(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

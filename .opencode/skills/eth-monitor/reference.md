@@ -40,6 +40,7 @@ case-sensitive substring of `/proc/<pid>/comm` (same `--match` /
   "host": "cn1",
   "pid": 59020,
   "comm": "app",
+  "process_starttime_ticks": 123456,
   "tcp_rx_bps": 8192.0,
   "tcp_tx_bps": 1024.0
 }
@@ -51,14 +52,29 @@ case-sensitive substring of `/proc/<pid>/comm` (same `--match` /
 | `host` | string | short hostname |
 | `pid` | int | matched task PID |
 | `comm` | string | `/proc/<pid>/comm` |
-| `tcp_rx_bps` / `tcp_tx_bps` | float | sock_diag `tcp_info` byte deltas / elapsed |
+| `process_starttime_ticks` | int | `/proc/<pid>/stat` starttime; PID reuse identity |
+| `tcp_rx_bps` / `tcp_tx_bps` | float | per-socket sock_diag deltas, summed / monotonic elapsed |
 
-Join is inode via `/proc/<pid>/fd` `socket:[inode]` plus
-`NETLINK_SOCK_DIAG` (`AF_INET` / `AF_INET6` TCP). Tx prefers
-`tcpi_bytes_sent`; short kernel struct falls back to `tcpi_bytes_acked`
-and may write `{run_dir}/tcp_info_partial`. First sample per PID is `0.0`.
+Identity is `(pid, starttime)`. Dump live TCP via `NETLINK_SOCK_DIAG` /
+`INET_DIAG` (`tcp_info`), keyed by inode plus kernel socket cookie. Join
+`/proc/<pid>/fd` `socket:[inode]`. If several matched PIDs share an inode,
+only the **lowest PID** owns it. Difference **each live socket**, then
+sum. A new socket on a known process contributes its current cumulative
+bytes this interval. A closed socket is dropped (last interval lost).
+First sample for a process instance is `0.0`. Rate denominator is
+monotonic elapsed, not wall `ts`.
 
-Not counted: UDP, InfiniBand/RDMA, sockets that closed between samples.
+Tx prefers `tcpi_bytes_sent`; short kernel struct falls back to
+`tcpi_bytes_acked` and may write `{run_dir}/tcp_info_partial`. Rx uses
+`bytes_received`.
+
+Not counted: UDP, InfiniBand/RDMA, sockets that exist only between samples.
+PID TCP is not a split of `eth_*_bps`.
+
+Agent-sidecar enables job-scoped collection: it waits for the first matched
+target process and stops appending host/PID network samples after two
+consecutive scans find no target. This excludes unrelated node traffic after
+the application exits.
 
 ## Paths in this sidecar
 

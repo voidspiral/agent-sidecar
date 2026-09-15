@@ -112,6 +112,15 @@ def cmd_srun(
             _log("start user step: " + " ".join(argv))
         return run_user_command(argv)
 
+    def default_stop_sidecar(run_dir: Path) -> None:
+        request_agent_stop(run_dir)
+        proc = holder.pop("proc", None)
+        if proc is None:
+            return
+        if verbose:
+            _log(f"stop sidecar before telemetry (pid={proc.pid})")
+        reap_sidecar(proc, timeout=2.0)
+
     if verbose:
         _log(f"profile={parsed.options.profile} skills={parsed.options.skills or DEFAULT_SKILLS}")
         _log("passthrough=" + " ".join(parsed.passthrough))
@@ -124,13 +133,14 @@ def cmd_srun(
         env=dict(os.environ),
         run_sidecar=run_sidecar or default_sidecar,
         run_user=run_user or default_user,
+        stop_sidecar=default_stop_sidecar if run_sidecar is None else None,
         overlap_ok=overlap_ok,
         opencode_runner=opencode_runner,
         live_watcher=live_watcher,
         live_plotter=live_plotter,
         tty=tty,
     )
-    proc = holder.get("proc")
+    proc = holder.pop("proc", None)
     if proc is not None:
         request_agent_stop(run_dir)
         if verbose:

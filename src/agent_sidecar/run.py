@@ -196,6 +196,7 @@ def wrap_srun(
     env: dict[str, str],
     run_sidecar: Runner,
     run_user: Runner,
+    stop_sidecar: Callable[[Path], None] | None = None,
     overlap_ok: bool = True,
     collect_errors: dict[str, str] | None = None,
     plotter=None,
@@ -326,6 +327,8 @@ def wrap_srun(
             else:
                 os.environ["AGENT_QUIET"] = prev_quiet
     request_agent_stop(run_dir)
+    if stop_sidecar is not None:
+        stop_sidecar(run_dir)
     job_id = str(env.get("SLURM_JOB_ID") or os.environ.get("SLURM_JOB_ID") or "")
     if slurm_collect is not None or (job_id and job_id != "0"):
         from agent_sidecar.tools.slurm_tap import refresh_slurm_snapshot

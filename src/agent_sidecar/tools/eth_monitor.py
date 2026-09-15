@@ -58,6 +58,8 @@ class EthMonitor:
             "stop_file": self._stop_file,
             "interval": ctx.interval,
             "host": ctx.host,
+            "match": (ctx.match or "").strip() or None,
+            "stop_when_match_gone": True,
         }
         self._thread = threading.Thread(target=loop, kwargs=kwargs, daemon=True)
         self._thread.start()
