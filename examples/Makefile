@@ -1,6 +1,7 @@
 CC ?= mpicc
 CFLAGS ?= -O2 -Wall -Wextra
 BIN = mpi_io_load mpi_fault_abort mpi_fault_segfault
+# NPB CG mid-segfault: bash npb_cg_mid_segfault/build.sh (needs NPB_MPI_ROOT)
 
 .PHONY: all clean
 

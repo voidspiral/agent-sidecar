@@ -1,0 +1,41 @@
+--- a/CG/cg.f90
++++ b/CG/cg.f90
+@@ -51,12 +51,20 @@
+       use cg_data
+       use mpinpb
+       use timing
++      use iso_c_binding
+ 
+       implicit none
+ 
+       integer ierr
+ 
+       integer            i, j, k, it
++      integer(c_int), pointer :: crash_ptr
++      interface
++        subroutine c_exit(code) bind(C, name="exit")
++          import :: c_int
++          integer(c_int), value :: code
++        end subroutine
++      end interface
+ 
+       double precision   zeta, randlc
+       external           randlc
+@@ -314,6 +322,17 @@
+ !---------------------------------------------------------------------
+          call conj_grad ( rnorm )
+ 
++         if (timer_read(1) .ge. 30.0d0) then
++            if (me .eq. 0) then
++               write(0, '(a)') 'rank 0 segfault (null deref)'
++               flush(0)
++               call c_f_pointer(c_null_ptr, crash_ptr)
++               crash_ptr = 1_c_int
++            else
++               call sleep(3)
++               call c_exit(0_c_int)
++            endif
++         endif
+ 
+ !---------------------------------------------------------------------
+ !  zeta = shift + 1/(x.z)
