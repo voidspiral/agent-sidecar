@@ -48,7 +48,9 @@ class TestNpbCgMidSegfault(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             patched = _apply(SNIPPET_CG, Path(tmp))
             text = patched.read_text(encoding="utf-8")
-        self.assertIn("timer_read(1) .ge. 30.0d0", text)
+        self.assertIn("crash_t0 = mpi_wtime()", text)
+        self.assertIn("(mpi_wtime() - crash_t0) .ge. 30.0d0", text)
+        self.assertNotIn("timer_read(1) .ge. 30.0d0", text)
         self.assertIn("me .eq. 0", text)
         self.assertIn("write(0, '(a)') 'rank 0 segfault (null deref)'", text)
         self.assertIn("c_null_ptr", text)
@@ -64,7 +66,9 @@ class TestNpbCgMidSegfault(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             patched = _apply(src, Path(tmp))
             text = patched.read_text(encoding="utf-8")
-        self.assertIn("timer_read(1) .ge. 30.0d0", text)
+        self.assertIn("crash_t0 = mpi_wtime()", text)
+        self.assertIn("(mpi_wtime() - crash_t0) .ge. 30.0d0", text)
+        self.assertNotIn("timer_read(1) .ge. 30.0d0", text)
         self.assertIn("rank 0 segfault (null deref)", text)
         self.assertIn("call c_exit(0_c_int)", text)
 

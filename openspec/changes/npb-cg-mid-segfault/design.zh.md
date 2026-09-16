@@ -28,7 +28,7 @@ P4 要用 NAS NPB 3.4-MPI 作为约 60s 集群演示。选定 CG：允许 2 rank
 
 3. **不内嵌 NPB。** 要求 `NPB_MPI_ROOT`（含 `CG/cg.f90` 和 `Makefile` 的目录）。构建拷到 `$AGENT_SHARED/npb-build/cg-mid-segfault`（默认 `/shared/npb-build/...`），原树保持干净。曾考虑 git submodule，因体积和拷贝噪音放弃。
 
-4. **补丁打在主 inverse-power 循环，而不是包一层二进制。** 在 `conj_grad` 之后、`timer_read(1) >= 30` 秒时注入，保证已发生通信。本集群两 rank 上 Class B 若跑到 `niter/2` 远超 60s；墙钟 30s 对应 P4 约 60s 算例的中途故障。存活 rank 必须像 `mpi_fault_segfault` 一样 `_exit`。
+4. **补丁打在主 inverse-power 循环，而不是包一层二进制。** 在 `timer_start(1)` 后记录 `crash_t0 = mpi_wtime()`，每次 `conj_grad` 之后若 `mpi_wtime() - crash_t0 >= 30` 秒则注入故障。NPB 3.4 的 `timer_read(n)` 只返回 `elapsed(n)`，要到 `timer_stop` 才更新，循环中 `timer_read(1)` 一直是 0。本集群两 rank 上 Class B 若跑到 `niter/2` 远超 60s；墙钟 30s 对应 P4 约 60s 算例的中途故障。存活 rank 必须像 `mpi_fault_segfault` 一样 `_exit`。启动用 `srun --mpi=pmi2`（或 pmix），否则本机 MPICH+SLURM 下裸 `srun -n2` 会变成两个 1-rank 世界。
 
 5. **用 `iso_c_binding` 的 `c_null_ptr` 空指针写**，不用 `MPI_Abort` 或 `raise(SIGSEGV)`，与 C 故障件一致。向 unit 0（stderr）打印 `rank 0 segfault (null deref)`，沿用现有 classify/pack。
 

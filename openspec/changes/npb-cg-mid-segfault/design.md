@@ -46,10 +46,15 @@ homes; do not change `reason_code` semantics.
    rejected (large, license/copy noise).
 
 4. **Patch the main inverse-power loop**, not a wrapper around the binary.
-   Inject after `conj_grad` when `timer_read(1) >= 30` seconds so some
-   communication has occurred. Class B on this two-rank VM is far longer
-   than 60s if run to `niter/2`; wall-clock 30s matches the P4 ~60s case
-   with a mid-run fault. Survivors must `_exit` like `mpi_fault_segfault`.
+   Inject after `conj_grad` when `mpi_wtime() - crash_t0 >= 30` seconds
+   (`crash_t0` sampled right after `timer_start(1)`). NPB 3.4 `timer_read(n)`
+   returns `elapsed(n)` only, which stays 0 until `timer_stop`, so a
+   `timer_read(1) >= 30` guard never fires during the timed loop. Class B
+   on this two-rank VM is far longer than 60s if run to `niter/2`; wall-clock
+   30s matches the P4 ~60s case with a mid-run fault. Survivors must `_exit`
+   like `mpi_fault_segfault`. Launch with `srun --mpi=pmi2` (or pmix) so the
+   two tasks share `MPI_COMM_WORLD`; bare `srun -n2` on this MPICH/SLURM
+   cluster yields two 1-rank worlds.
 
 5. **Null dereference via `iso_c_binding` `c_null_ptr`**, not `MPI_Abort` or
    `raise(SIGSEGV)`, matching the C fixture. Print to unit 0 (stderr) the

@@ -1,6 +1,6 @@
 ## 1. Tests first
 
-- [x] 1.1 Add failing unittest that applies the CG patch to a stored NPB 3.4.3 iteration-loop snippet (and to `NPB_MPI_ROOT/CG/cg.f90` when present) and asserts 30s `timer_read` guard, rank 0 stderr line, null deref, and survivor `sleep`/`c_exit`
+- [x] 1.1 Add failing unittest that applies the CG patch to a stored NPB 3.4.3 iteration-loop snippet (and to `NPB_MPI_ROOT/CG/cg.f90` when present) and asserts 30s `mpi_wtime() - crash_t0` guard, rank 0 stderr line, null deref, and survivor `sleep`/`c_exit`
 - [x] 1.2 Add failing unittest that `examples/npb_cg_mid_segfault/build.sh` exits non-zero with `NPB_MPI_ROOT` guidance when the env var is missing or not an NPB tree
 
 ## 2. Example and demo

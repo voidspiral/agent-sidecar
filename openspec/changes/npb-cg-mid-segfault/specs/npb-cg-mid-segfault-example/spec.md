@@ -16,7 +16,9 @@ NOT hardcode a user home path.
 
 #### Scenario: Patch injects midpoint rank-0 crash
 - **WHEN** the CG patch is applied to NPB 3.4.3 `CG/cg.f90`
-- **THEN** the patched source guards on `timer_read(1) >= 30` seconds, rank 0
+- **THEN** the patched source records `crash_t0 = mpi_wtime()` after
+  `timer_start(1)` and guards on `mpi_wtime() - crash_t0 >= 30` seconds
+  (NPB 3.4 `timer_read` stays 0 until `timer_stop`), rank 0
   writes `rank 0 segfault (null deref)` to stderr and null-dereferences, and
   other ranks sleep then `_exit`
 

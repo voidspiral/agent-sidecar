@@ -1,6 +1,6 @@
 --- a/CG/cg.f90
 +++ b/CG/cg.f90
-@@ -51,12 +51,20 @@
+@@ -51,12 +51,21 @@
        use cg_data
        use mpinpb
        use timing
@@ -11,7 +11,8 @@
        integer ierr
  
        integer            i, j, k, it
-+      integer(c_int), pointer :: crash_ptr
++      integer(c_int), volatile, pointer :: crash_ptr
++      double precision   crash_t0
 +      interface
 +        subroutine c_exit(code) bind(C, name="exit")
 +          import :: c_int
@@ -21,11 +22,19 @@
  
        double precision   zeta, randlc
        external           randlc
-@@ -314,6 +322,17 @@
+@@ -301,6 +310,7 @@
+ 
+       call timer_clear( 1 )
+       call timer_start( 1 )
++      crash_t0 = mpi_wtime()
+ 
+ !---------------------------------------------------------------------
+ !---->
+@@ -313,6 +323,17 @@
+ !  The call to the conjugate gradient routine:
  !---------------------------------------------------------------------
           call conj_grad ( rnorm )
- 
-+         if (timer_read(1) .ge. 30.0d0) then
++         if ((mpi_wtime() - crash_t0) .ge. 30.0d0) then
 +            if (me .eq. 0) then
 +               write(0, '(a)') 'rank 0 segfault (null deref)'
 +               flush(0)
@@ -37,5 +46,5 @@
 +            endif
 +         endif
  
+ 
  !---------------------------------------------------------------------
- !  zeta = shift + 1/(x.z)
