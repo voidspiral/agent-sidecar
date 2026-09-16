@@ -15,7 +15,7 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-from agent_fakes import NoPlot, RecWatch
+from agent_fakes import NoPlot, NoWatch, RecWatch
 from agent_sidecar.argv import parse_agent_argv
 from agent_sidecar.cli import main
 from agent_sidecar.live_opencode import ATTACH_HINT
@@ -65,10 +65,13 @@ class TestJobAssistProfile(unittest.TestCase):
                 live_plotter=NoPlot(),
             )
             self.assertEqual(code, 0)
-            self.assertEqual(len(runner.calls), 1)
-            self.assertTrue((run_dir / "assist" / "job.json").is_file())
-            self.assertEqual(runner.calls[0]["argv"][:3], ["opencode", "run", "--dir"])
-            self.assertIn("--auto", runner.calls[0]["argv"])
+            self.assertEqual(len(runner.calls), 0)
+            note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
+            self.assertIn("4. 建议", note["summary"])
+            self.assertIn("--agent-match", note["summary"])
+            self.assertEqual(note["actions"], [])
+            doc = load_telemetry(run_dir)
+            self.assertTrue(doc.get("job_assist"))
 
     def test_wrap_skips_final_opencode_when_timeout_zero(self) -> None:
         runner = _ok("should not run")
@@ -95,7 +98,8 @@ class TestJobAssistProfile(unittest.TestCase):
             )
             self.assertEqual(code, 0)
             self.assertEqual(len(runner.calls), 0)
-            self.assertFalse((run_dir / "assist" / "job.json").is_file())
+            note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
+            self.assertIn("4. 建议", note["summary"])
 
     def test_wrap_final_opencode_when_timeout_set(self) -> None:
         runner = _ok("rank imbalance likely")
@@ -163,9 +167,10 @@ class TestJobAssistProfile(unittest.TestCase):
                 )
                 chat.assert_not_called()
             self.assertEqual(code, 0)
-            self.assertEqual(len(runner.calls), 1)
+            self.assertEqual(len(runner.calls), 0)
             self.assertTrue((run_dir / "telemetry.json").is_file())
-            self.assertTrue((run_dir / "assist" / "job.json").is_file())
+            note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
+            self.assertIn("4. 建议", note["summary"])
 
     def test_tools_only_zero_calls(self) -> None:
         runner = _ok()
@@ -216,9 +221,10 @@ class TestJobAssistProfile(unittest.TestCase):
             self.assertEqual(parsed.options.profile, "job-assist")
             self.assertTrue(seen)
             self.assertIn("--overlap", seen[0])
-            self.assertEqual(len(runner.calls), 1)
+            self.assertEqual(len(runner.calls), 0)
             self.assertTrue((run_dir / "telemetry.json").is_file())
-            self.assertTrue((run_dir / "assist" / "job.json").is_file())
+            note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
+            self.assertIn("4. 建议", note["summary"])
 
     def test_non_tty_starts_watcher_before_user(self) -> None:
         runner = _ok()
@@ -363,6 +369,44 @@ class TestJobAssistProfile(unittest.TestCase):
             self.assertEqual(note["suspected_reason"], "mpi_abort")
             self.assertEqual(note["actions"], [])
             self.assertGreaterEqual(len(runner.calls), 1)
+
+    def test_wrap_keeps_pack_note_without_opencode(self) -> None:
+        runner = _ok("should not replace pack")
+        with tempfile.TemporaryDirectory() as tmp:
+            parsed = parse_agent_argv(
+                [
+                    "srun",
+                    "--agent-profile=job-assist",
+                    "--agent-output-dir",
+                    tmp,
+                    "-n",
+                    "1",
+                    "--",
+                    "true",
+                ]
+            )
+
+            def run_sidecar(argv: list[str]) -> int:
+                out = Path(argv[argv.index("--output-dir") + 1])
+                events = out / "events"
+                events.mkdir(parents=True, exist_ok=True)
+                (events / "stderr.tail").write_text("MPI_Abort\n", encoding="utf-8")
+                return 0
+
+            _code, run_dir, _plan = wrap_srun(
+                parsed,
+                env=dict(SECRET_ENV),
+                run_sidecar=run_sidecar,
+                run_user=lambda _a: 1,
+                opencode_runner=runner,
+                live_plotter=NoPlot(),
+                live_watcher=NoWatch(),
+            )
+            self.assertEqual(len(runner.calls), 0)
+            note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
+            self.assertEqual(note["suspected_reason"], "mpi_abort")
+            self.assertIn("MPI", note["summary"])
+            self.assertNotIn("should not replace pack", note["summary"])
 
     def test_live_file_does_not_overwrite_reason_final_after_telemetry(self) -> None:
         tel_seen: list[bool] = []

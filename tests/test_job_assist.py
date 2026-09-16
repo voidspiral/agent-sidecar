@@ -46,7 +46,12 @@ class TestJobAssist(unittest.TestCase):
             run_dir = Path(tmp)
             _seed(run_dir)
             runner = _ok_runner()
-            code = run_job_assist(run_dir, opencode_runner=runner, user_exit=9)
+            code = run_job_assist(
+                run_dir,
+                opencode_runner=runner,
+                user_exit=9,
+                env={"AGENT_OPENCODE_FINAL_TIMEOUT": "20"},
+            )
             self.assertEqual(code, 9)
             self.assertEqual(len(runner.calls), 1)
             argv = runner.calls[0]["argv"]
@@ -103,7 +108,12 @@ class TestJobAssist(unittest.TestCase):
                 raise OpenCodeError("opencode_missing", "opencode not on PATH")
 
             with patch("agent_sidecar.llm.chat_complete") as chat:
-                code = run_job_assist(run_dir, opencode_runner=runner, user_exit=3)
+                code = run_job_assist(
+                    run_dir,
+                    opencode_runner=runner,
+                    user_exit=3,
+                    env={"AGENT_OPENCODE_FINAL_TIMEOUT": "20"},
+                )
                 chat.assert_not_called()
             self.assertEqual(code, 3)
             doc = load_telemetry(run_dir)
@@ -119,7 +129,12 @@ class TestJobAssist(unittest.TestCase):
             def runner(argv, cwd, timeout, env=None):
                 return 2, "", "opencode boom"
 
-            code = run_job_assist(run_dir, opencode_runner=runner, user_exit=4)
+            code = run_job_assist(
+                run_dir,
+                opencode_runner=runner,
+                user_exit=4,
+                env={"AGENT_OPENCODE_FINAL_TIMEOUT": "20"},
+            )
             self.assertEqual(code, 4)
             doc = load_telemetry(run_dir)
             self.assertIn("opencode_failed", doc["collect_errors"])
@@ -133,7 +148,12 @@ class TestJobAssist(unittest.TestCase):
             def runner(argv, cwd, timeout, env=None):
                 raise OpenCodeError("opencode_timeout", "timed out")
 
-            code = run_job_assist(run_dir, opencode_runner=runner, user_exit=5)
+            code = run_job_assist(
+                run_dir,
+                opencode_runner=runner,
+                user_exit=5,
+                env={"AGENT_OPENCODE_FINAL_TIMEOUT": "20"},
+            )
             self.assertEqual(code, 5)
             doc = load_telemetry(run_dir)
             self.assertIn("opencode_timeout", doc["collect_errors"])
@@ -153,7 +173,12 @@ class TestJobAssist(unittest.TestCase):
                 )
                 raise OpenCodeError("opencode_timeout", "timed out")
 
-            code = run_job_assist(run_dir, opencode_runner=runner, user_exit=5)
+            code = run_job_assist(
+                run_dir,
+                opencode_runner=runner,
+                user_exit=5,
+                env={"AGENT_OPENCODE_FINAL_TIMEOUT": "20"},
+            )
             self.assertEqual(code, 5)
             doc = load_telemetry(run_dir)
             self.assertNotIn("opencode_timeout", doc.get("collect_errors") or {})
@@ -180,7 +205,12 @@ class TestJobAssist(unittest.TestCase):
             (run_dir / "series").mkdir(exist_ok=True)
             (run_dir / "series" / "h1_pid9.jsonl").write_text(series_line + "\n")
             runner = _ok_runner("ok interpretation")
-            run_job_assist(run_dir, opencode_runner=runner, user_exit=0)
+            run_job_assist(
+                run_dir,
+                opencode_runner=runner,
+                user_exit=0,
+                env={"AGENT_OPENCODE_FINAL_TIMEOUT": "20"},
+            )
             prompt = runner.calls[0]["argv"][-1]
             self.assertIn("reason_code", prompt)
             self.assertNotIn(series_line, prompt)
@@ -227,7 +257,57 @@ class TestJobAssist(unittest.TestCase):
             )
             self.assertEqual(code, 0)
             self.assertEqual(len(runner.calls), 0)
-            self.assertFalse((run_dir / "assist" / "job.json").is_file())
+            note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
+            self.assertIn("4. 建议", note["summary"])
+
+    def test_default_ok_job_writes_hints_without_opencode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            write_telemetry(
+                run_dir,
+                summary={
+                    "cpu_avg": 40.0,
+                    "cpu_peak": 55.0,
+                    "exit_code": 0,
+                    "pid_count": 2,
+                    "host_count": 1,
+                    "rss_peak_mb": 64.0,
+                    "io_read_bps_sum": 1.0,
+                    "io_write_bps_sum": 1.0,
+                },
+                anomalies=[],
+                evidence_paths=["series/h1_pid1.jsonl"],
+                reason_code="ok",
+                retry_allowed=False,
+                attempt=1,
+                extra={"collect_errors": {}},
+            )
+            runner = _ok_runner()
+            code = run_job_assist(run_dir, opencode_runner=runner, user_exit=0)
+            self.assertEqual(code, 0)
+            self.assertEqual(len(runner.calls), 0)
+            note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
+            self.assertEqual(note["suspected_reason"], "ok")
+            self.assertIn("4. 建议", note["summary"])
+            self.assertIn("pid_count=2", note["summary"])
+            doc = load_telemetry(run_dir)
+            self.assertTrue(doc.get("job_assist"))
+
+    def test_keeps_existing_pack_note(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            _seed(run_dir)
+            write_job_assist_note(
+                run_dir,
+                reason_code="mpi_abort",
+                summary="1. 结论：pack abort。\n2. 采集：-\n3. 异常：mpi_abort\n4. 建议：查源码",
+                evidence_paths=["events/stderr.tail"],
+            )
+            runner = _ok_runner()
+            run_job_assist(run_dir, opencode_runner=runner, user_exit=1)
+            self.assertEqual(len(runner.calls), 0)
+            note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
+            self.assertIn("pack abort", note["summary"])
 
     def test_final_timeout_from_env(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -242,3 +322,5 @@ class TestJobAssist(unittest.TestCase):
             )
             self.assertEqual(code, 0)
             self.assertEqual(len(runner.calls), 0)
+            note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
+            self.assertIn("4. 建议", note["summary"])

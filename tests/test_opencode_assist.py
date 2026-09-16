@@ -160,10 +160,20 @@ class TestOpenCodeAssist(unittest.TestCase):
             )
             with patch.dict(os.environ, {"AGENT_LLM_MODEL": "deepseek-v4-flash"}, clear=False):
                 os.environ.pop("AGENT_OPENCODE_MODEL", None)
-                run_job_assist(run_dir, opencode_runner=runner, user_exit=0)
+                run_job_assist(
+                    run_dir,
+                    opencode_runner=runner,
+                    user_exit=0,
+                    env={"AGENT_OPENCODE_FINAL_TIMEOUT": "20"},
+                )
             self.assertNotIn("--model", runner.argv)
             with patch.dict(os.environ, {"AGENT_OPENCODE_MODEL": "anthropic/deepseek-v4-flash"}):
-                run_job_assist(run_dir, opencode_runner=runner, user_exit=0)
+                run_job_assist(
+                    run_dir,
+                    opencode_runner=runner,
+                    user_exit=0,
+                    env={"AGENT_OPENCODE_FINAL_TIMEOUT": "20"},
+                )
             self.assertIn("--model", runner.argv)
             self.assertIn("anthropic/deepseek-v4-flash", runner.argv)
 

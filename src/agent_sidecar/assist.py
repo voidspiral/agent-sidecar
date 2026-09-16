@@ -108,10 +108,19 @@ def run_job_assist(
     if promote_live_assist(run_dir):
         return user_exit
     budget = final_assist_timeout(timeout, env)
-    if budget is not None and budget <= 0:
-        return user_exit
+    force_llm = budget is not None and budget > 0
     run_dir = Path(run_dir)
     note_path = run_dir / "assist" / "job.json"
+    if not force_llm:
+        existing = note_summary(note_path)
+        if existing:
+            doc = load_telemetry(run_dir)
+            _record_job_assist_success(run_dir, doc, existing)
+            return user_exit
+        from agent_sidecar.analysis.resource_hints import write_resource_hints_note
+
+        write_resource_hints_note(run_dir)
+        return user_exit
     # Deterministic packs may have already written job.json; clear it so the
     # OpenCode runner does not treat the pack note as a completed model write.
     pack_backup: str | None = None
