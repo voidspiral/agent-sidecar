@@ -75,17 +75,19 @@ once per compute node, and MUST issue at most one model call per wrap attempt.
 ### Requirement: Job-assist invokes OpenCode once on the submit host
 When `--agent-profile=job-assist` is set, the system SHALL start at most one
 job-level assist after aggregated `JobTelemetry` exists. That assist MUST run
-on the submitting CLI host (login node) or the documented allocation head, not
-once per compute node, and MUST issue at most one OpenCode spawn per wrap
-attempt. It MUST NOT issue an OpenAI-compatible HTTP chat from wrap.
+on the submitting CLI host, not once per compute node. By default the assist
+MUST be a deterministic `assist/job.json` write (live promote, pack note, or
+resource hints) and MUST NOT spawn OpenCode. A positive
+`AGENT_OPENCODE_FINAL_TIMEOUT` MAY spawn at most one OpenCode per wrap
+attempt. Wrap MUST NOT issue an OpenAI-compatible HTTP chat.
 
-#### Scenario: One OpenCode call for a multi-node job
-- **WHEN** `--agent-profile=job-assist` wraps a two-node allocation
-- **THEN** exactly one OpenCode runner invocation is issued after telemetry is
-  written
+#### Scenario: Default job-assist wrap has no OpenCode
+- **WHEN** `--agent-profile=job-assist` wraps a two-node allocation without
+  `AGENT_OPENCODE_FINAL_TIMEOUT`
+- **THEN** the OpenCode runner is not invoked and `assist/job.json` exists
 
 #### Scenario: Tools-only still launches no model
-- **WHEN** `--agent-profile` is omitted or is `tools-only`
+- **WHEN** `--agent-profile` is `tools-only`
 - **THEN** no OpenCode runner and no chat HTTP request is made
 
 ### Requirement: Node LLM remains unsupported in this change
