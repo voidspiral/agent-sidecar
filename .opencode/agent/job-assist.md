@@ -17,9 +17,11 @@ interpret live snapshots **only when tool anomalies exist** in `events/`
 changes are not a live OpenCode trigger. When the user step ends, live OpenCode is
 cancelled. Wrap promotes `assist/live.json` to `assist/job.json` when a live
 summary exists (`suspected_reason` copied from `reason_code`). Otherwise wrap
-runs a post-job OpenCode (budget `AGENT_OPENCODE_FINAL_TIMEOUT`, or
-`AGENT_OPENCODE_TIMEOUT` when unset). Set `AGENT_OPENCODE_FINAL_TIMEOUT=0` to
-skip the post-job model. If you are writing the final note, write
+keeps a pack `assist/job.json` if present, or writes a deterministic note from
+`telemetry.json` summary (healthy jobs still get numbered 建议 from
+CPU/RSS/IO/ethernet and pid counts). Wrap does not spawn post-job OpenCode
+unless `AGENT_OPENCODE_FINAL_TIMEOUT` is a positive number. `agent analy --llm`
+may still run OpenCode. If you are writing the final note, write
 `assist/job.json`.
 Compute-node sidecars are
 deterministic tools only (`proc-monitor`, `mpi-scan`, `slurm-tap`, `node-diag`,
@@ -84,7 +86,9 @@ in 简体中文 and propose a corrected `agent srun` line: compile to a shared p
 such as `/shared/agent-sidecar/examples/mpi_io_load` and pass that path after
 `--`.
 
-Load skills under `.opencode/skills/` (mpi-monitor timeseries, eth-monitor, launch-fail, node-diag).
+Skills under `.opencode/skills/` (mpi-monitor, eth-monitor, launch-fail,
+node-diag) describe artifacts for OpenCode ticks and `analy --llm`. Wrap-default
+notes do not invoke the skill tool.
 
 ## Maintainer sync
 

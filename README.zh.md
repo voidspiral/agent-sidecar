@@ -28,10 +28,10 @@ bash /shared/agent-sidecar/scripts/sidecar.sh --agent-verbose srun -N 2 -n 4 ./a
 bash /shared/agent-sidecar/scripts/sidecar-analy.sh --log /shared/agent-runs/<run_id> --code /path/to/src
 ```
 
-`sidecar.sh` 包装用户 `srun`：节点工具采集，并在提交端用 OpenCode 解读这些
-产物（与 `agent srun` 默认 `job-assist` 相同）。sidecar 开关（`--agent-*`）
-写在 **`srun` 之前**。用户命令不是选项形态时不必 `--`。
-`--agent-profile=tools-only` 关闭伴随启动的模型。`sidecar-analy.sh` 是事后
+`sidecar.sh` 包装用户 `srun`：节点工具采集，并在提交端写 `assist/job.json`
+（pack 或健康作业的资源建议，与 `agent srun` 默认 `job-assist` 相同）。sidecar
+开关（`--agent-*`）写在 **`srun` 之前**。用户命令不是选项形态时不必 `--`。
+`--agent-profile=tools-only` 关闭伴随启动的笔记。`sidecar-analy.sh` 是事后
 **授权源码** 再分析：`--log` 为 run 目录，`--code` 为允许引用的源码树。
 `--no-llm` 只跑确定性 pack。模块形式 `python3 -m agent_sidecar …` 仍可用。
 
@@ -44,7 +44,7 @@ bash /shared/agent-sidecar/scripts/sidecar-analy.sh --log /shared/agent-runs/<ru
 sidecar.sh --agent-output-dir ./runs srun -N 2 -n 4 ./app
 ```
 
-默认 `--agent-profile` 为 `job-assist`（节点工具 + 提交端 OpenCode）。
+默认 `--agent-profile` 为 `job-assist`（节点工具 + 提交端确定性笔记；live 异常才 OpenCode）。
 `--agent-skills` 默认为 `proc-monitor,mpi-scan,slurm-tap,node-diag,eth-monitor`；有 `/shared` 时输出目录默认为
 `/shared/agent-runs`；默认为 `--agent-quiet`（关键步骤 + 最终 report）。
 `--agent-verbose` 打开完整启动痕迹。`--agent-profile=tools-only` 关闭 OpenCode。
@@ -61,8 +61,10 @@ sidecar.sh --agent-output-dir ./runs srun -N 2 -n 4 ./app
 | `--agent-interval` | 采样间隔秒（默认 `1.0`） |
 | `--agent-live-plot` / `--agent-no-live-plot` | 提交端叠线 HTTP（默认开）。`AGENT_LIVE_PLOT=0` 关闭；`AGENT_LIVE_PLOT_PORT` 改端口（默认 `8765`） |
 
-`job-assist`（默认）在提交端跑 OpenCode：**仅当 `events/` 出现工具异常**时做
-live 解读（`opencode run --dir <本仓库>`），不再 `POST /chat/completions`，不 source
+`job-assist`（默认）在提交端写分条中文笔记：**仅当 `events/` 出现工具异常**时做
+live OpenCode 解读（`opencode run --dir <本仓库>`）。健康作业结束时仍根据
+CPU/RSS/IO/以太网 summary 给出建议，默认不再跑期末 OpenCode。不再
+`POST /chat/completions`，不 source
 任何供应商 env 文件，也不在计算节点上跑模型。OpenCode 用登录节点上自己的
 配置。进程环境里若已有供应商变量，会从 sidecar `srun` 剥掉。缺少 `opencode`
 时 **不会** 回退 HTTP。
@@ -117,9 +119,10 @@ bash /shared/agent-sidecar/scripts/sidecar.sh serve --run-dir /shared/agent-runs
 可选：设 `AGENT_OPENCODE_MODEL`（`provider/model`）固定模型。job-assist
 live 超时默认 300s（`AGENT_OPENCODE_TIMEOUT`）。用户步骤结束时取消 live
 OpenCode；若已有 `assist/live.json` 摘要则提升为 `assist/job.json`。
-作业结束时若无 live 摘要可 promote，则默认再跑一轮 post-job OpenCode（超时同
-`AGENT_OPENCODE_TIMEOUT`，可用 `AGENT_OPENCODE_FINAL_TIMEOUT` 覆盖）。设
-`AGENT_OPENCODE_FINAL_TIMEOUT=0` 可跳过作业结束后的模型。
+否则保留 pack 笔记，或根据监控 summary 写确定性分条建议（健康作业也有
+建议）。默认不再 spawn 期末 OpenCode；把
+`AGENT_OPENCODE_FINAL_TIMEOUT` 设为正数才恢复 wrap OpenCode。
+`agent analy --llm` 仍可跑模型。
 
 MPI 示例见 `examples/mpi_io_load.c`：每 rank 先约 60 秒 NFS 写/fsync/读，
 再 30 秒本地 CPU burn（`mpi_io_load [io_seconds] [work_dir] [cpu_seconds]`；

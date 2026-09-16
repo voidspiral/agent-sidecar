@@ -28,11 +28,11 @@ bash /shared/agent-sidecar/scripts/sidecar.sh --agent-verbose srun -N 2 -n 4 ./a
 bash /shared/agent-sidecar/scripts/sidecar-analy.sh --log /shared/agent-runs/<run_id> --code /path/to/src
 ```
 
-`sidecar.sh` wraps the user `srun`, collects with node tools, and runs
-job-assist OpenCode on those artifacts (same default as `agent srun`).
-Sidecar flags (`--agent-*`) go **before** `srun`. `--` is optional when the
-user command is not option-shaped. `--agent-profile=tools-only` skips the
-wrap-time model.
+`sidecar.sh` wraps the user `srun`, collects with node tools, and writes
+job-assist `assist/job.json` from pack notes or resource hints (same default
+as `agent srun`). Sidecar flags (`--agent-*`) go **before** `srun`. `--` is
+optional when the user command is not option-shaped. `--agent-profile=tools-only`
+skips the wrap-time note.
 `sidecar-analy.sh` is the later **source-authorized** pass: `--log` is the
 run directory, `--code` is the tree the operator allows the model to cite.
 Pass `--no-llm` for the deterministic pack only. The module form
@@ -68,7 +68,9 @@ skips OpenCode.
 
 Job-assist runs **on the submit host**: a live OpenCode watcher runs **only
 when tool anomalies appear** in `events/` (MPI abort, SLURM failure/OOM,
-node-diag). Healthy CPU/RSS/IO series changes do not spawn OpenCode. It does not POST `/chat/completions`, does not source
+node-diag). Healthy CPU/RSS/IO series changes do not spawn OpenCode. After
+wrap, healthy jobs still get numbered Chinese 建议 from the numeric summary
+without a post-job model. It does not POST `/chat/completions`, does not source
 a provider env file, and does not run on compute nodes. OpenCode uses its own
 login-host config. Provider keys that happen to be in the process environment
 are stripped from sidecar `srun`. There is **no HTTP fallback** if `opencode`
@@ -88,9 +90,11 @@ the user command exit code. The model must not change `reason_code`.
 Optional: set `AGENT_OPENCODE_MODEL` (`provider/model`) to pin the model.
 Live OpenCode timeout defaults to 300s (`AGENT_OPENCODE_TIMEOUT`). Wrap
 cancels live OpenCode when the user step ends and promotes `assist/live.json`
-to `assist/job.json` if a live summary exists. Otherwise it runs a post-job
-OpenCode (same default budget unless `AGENT_OPENCODE_FINAL_TIMEOUT` is set).
-Set `AGENT_OPENCODE_FINAL_TIMEOUT=0` to skip the post-job model.
+to `assist/job.json` if a live summary exists. Otherwise wrap keeps a pack
+note or writes deterministic resource hints (healthy jobs still include 建议
+from CPU/RSS/IO/ethernet and pid counts) and does **not** spawn post-job
+OpenCode unless `AGENT_OPENCODE_FINAL_TIMEOUT` is a positive number.
+`agent analy --llm` may still run OpenCode.
 
 `proc-monitor` imports `mpi_monitor.collect.collect_loop`. `eth-monitor`
 imports `eth_monitor.collect.collect_loop`. Deploy **all three** trees onto
