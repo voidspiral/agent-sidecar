@@ -11,10 +11,11 @@
 （MPI abort、SLURM 失败/OOM、node-diag）时解读 live 快照。健康作业的 CPU/RSS/IO/
 以太网采样变化不是 live OpenCode 触发条件。用户步骤结束时取消 live OpenCode。
 若已有 `assist/live.json` 摘要，wrap 将其提升为 `assist/job.json`
-（`suspected_reason` 抄自 `reason_code`）。否则 wrap 会跑一轮 post-job
-OpenCode（超时取 `AGENT_OPENCODE_FINAL_TIMEOUT`；未设置则用
-`AGENT_OPENCODE_TIMEOUT`）。设 `AGENT_OPENCODE_FINAL_TIMEOUT=0` 可跳过
-作业结束后的模型。若你在写最终笔记，请写 `assist/job.json`。计算节点 sidecar 只做确定性工具（`proc-monitor`、
+（`suspected_reason` 抄自 `reason_code`）。否则若 pack 已写 `assist/job.json`
+则保留；再否则根据 `telemetry.json` 的 summary 写确定性分条笔记（**健康作业
+也必须有建议**：CPU/RSS/IO/以太网与 pid 计数）。默认 wrap 不 spawn 期末
+OpenCode；仅当 `AGENT_OPENCODE_FINAL_TIMEOUT` 为正数时才跑 wrap OpenCode。
+`agent analy --llm` 仍可跑 OpenCode。若你在写最终笔记，请写 `assist/job.json`。计算节点 sidecar 只做确定性工具（`proc-monitor`、
 `mpi-scan`、`slurm-tap`、`node-diag`、`eth-monitor`）。不要刮取 `/proc`。不要在计算节点
 启动 OpenCode。不要调用 `scancel` 或 `scontrol`。不要覆盖 `reason_code`。
 
@@ -67,7 +68,9 @@ Live 文件不得替换 wrap 时的 `reason_code`。
 `agent srun` 命令：编译到共享路径，例如
 `/shared/agent-sidecar/examples/mpi_io_load`，在 `--` 之后传入该路径。
 
-加载 `.opencode/skills/` 下的 skills（mpi-monitor 时序、eth-monitor、launch-fail、node-diag）。
+`.opencode/skills/` 下的 skills（mpi-monitor、eth-monitor、launch-fail、
+node-diag）供 live OpenCode 与 `analy --llm` 解读产物。wrap 默认笔记不调用
+skill 工具。
 
 ## 维护者同步
 
