@@ -1,0 +1,4 @@
+# Linux login/compute hosts and rsync-to-NFS must see Unix newlines.
+# Overrides core.autocrlf=true on checkout for these paths.
+* text=auto
+*.sh text eol=lf
