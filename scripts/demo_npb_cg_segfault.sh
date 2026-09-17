@@ -42,7 +42,7 @@ bash '$ROOT/scripts/sidecar.sh' --agent-verbose \\
   --agent-skills=proc-monitor,slurm-tap,mpi-scan,node-diag,eth-monitor \\
   --agent-match='$MATCH' \\
   --agent-output-dir '$OUT' \\
-  srun -N2 -n2 -l \\
+  srun --mpi=pmi2 -N2 -n2 -l \\
   $BIN || true
 "
 
