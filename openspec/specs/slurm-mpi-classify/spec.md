@@ -29,11 +29,19 @@ Tool plugins SHALL classify anomalies into a documented reason-code set before a
 - **THEN** anomalies include `node_fail`
 
 ### Requirement: MPI runtime codes
-`mpi-scan` SHALL detect documented patterns in captured stdout/stderr including `MPI_Abort`, PMIx abort, disconnected rank, and Hydra `assert (!closed)`, and MUST emit `mpi_abort` or a more specific documented code with a stderr tail path.
+`mpi-scan` SHALL detect documented patterns in captured stdout/stderr including `MPI_Abort`, PMIx abort, disconnected rank, Hydra `assert (!closed)`, segmentation faults, floating-point exceptions, and fixture deadlock markers, and MUST emit `mpi_abort`, `mpi_segfault`, `mpi_fpe`, `mpi_deadlock`, or a more specific documented code with a stderr tail path.
 
 #### Scenario: MPI_Abort in stderr
 - **WHEN** tee'd output contains `MPI_Abort`
 - **THEN** an event with reason code `mpi_abort` is present and `evidence_paths` includes the stderr capture
+
+#### Scenario: SIGFPE in stderr
+- **WHEN** tee'd output contains `Floating point exception`, `SIGFPE`, `signal 8`, or `rank N fpe`
+- **THEN** an event with reason code `mpi_fpe` is present
+
+#### Scenario: Deadlock fixture marker in stderr
+- **WHEN** tee'd output contains `rank N deadlock`
+- **THEN** an event with reason code `mpi_deadlock` is present
 
 #### Scenario: No match yields no mpi event
 - **WHEN** stderr has no documented MPI fault pattern

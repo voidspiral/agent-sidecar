@@ -126,7 +126,9 @@ OpenCode；若已有 `assist/live.json` 摘要则提升为 `assist/job.json`。
 
 MPI 示例见 `examples/mpi_io_load.c`：每 rank 先约 60 秒 NFS 写/fsync/读，
 再 30 秒本地 CPU burn（`mpi_io_load [io_seconds] [work_dir] [cpu_seconds]`；
-第三参数传 `0` 则跳过 CPU）。本集群 NFS 挂在
+第三参数传 `0` 则跳过 CPU）。故障用例目录名等于调研总表 ID（`03` 段错误、
+`06x` Abort、`10` 启动失败；`2a`/`2b` 合成 `02`）。`make -C examples` 递归
+全部目录，未完成项的 `all` 为空目标。本集群 NFS 挂在
 `/shared`（`mn:/shared`）。源码、二进制、IO scratch 和 run 产物都放这里，
 各节点同一份文件：
 

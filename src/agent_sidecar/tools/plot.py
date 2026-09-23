@@ -11,6 +11,8 @@ from agent_sidecar.chart_markers import load_markers, markers_in_range
 MARKER_COLORS = {
     "mpi_abort": "#c0392b",
     "mpi_segfault": "#d35400",
+    "mpi_fpe": "#16a085",
+    "mpi_deadlock": "#2980b9",
     "slurm_oom": "#8e44ad",
     "node_local": "#f1c40f",
 }

@@ -30,8 +30,8 @@ if [[ -z "$MPICC" ]]; then
   echo "mpicc not found" >&2
   exit 1
 fi
-BIN="$ROOT/examples/mpi_fault_abort"
-"$MPICC" -O2 -Wall -Wextra -o "$BIN" "$ROOT/examples/mpi_fault_abort.c"
+BIN="$ROOT/examples/06x/mpi_fault_abort"
+make -C "$ROOT/examples/06x" CC="$MPICC"
 test -x "$BIN"
 echo "compiled $BIN with $MPICC"
 echo

@@ -9,6 +9,7 @@ sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "src"))
 
 import unittest
 
+from agent_sidecar.analysis.packs import select_pack
 from agent_sidecar.classify import classify_mpi_text, classify_node_diag_text, classify_slurm_state
 
 
@@ -35,6 +36,24 @@ class TestClassify(unittest.TestCase):
         self.assertEqual(classify_mpi_text("*** Process received signal 11 ***"), "mpi_segfault")
         self.assertEqual(classify_mpi_text("Rank 1 exited on signal 11 (SIGSEGV)"), "mpi_segfault")
         self.assertEqual(classify_mpi_text("rank 3 called MPI_Abort"), "mpi_abort")
+
+    def test_mpi_fpe_patterns(self) -> None:
+        self.assertEqual(classify_mpi_text("rank 0 fpe (SIGFPE)"), "mpi_fpe")
+        self.assertEqual(classify_mpi_text("Floating point exception"), "mpi_fpe")
+        self.assertEqual(classify_mpi_text("Process received SIGFPE"), "mpi_fpe")
+        self.assertEqual(classify_mpi_text("Rank 1 exited on signal 8"), "mpi_fpe")
+        self.assertEqual(classify_mpi_text("rank 3 called MPI_Abort"), "mpi_abort")
+
+    def test_mpi_deadlock_patterns(self) -> None:
+        self.assertEqual(
+            classify_mpi_text("rank 0 deadlock (skip barrier)"), "mpi_deadlock"
+        )
+        self.assertEqual(classify_mpi_text("rank 3 called MPI_Abort"), "mpi_abort")
+
+    def test_fpe_and_deadlock_use_stub_pack(self) -> None:
+        self.assertEqual(select_pack("mpi_fpe", {"pid_count": 2}), "stub")
+        self.assertEqual(select_pack("mpi_deadlock", {"pid_count": 2}), "stub")
+        self.assertEqual(select_pack("slurm_oom", {"pid_count": 1}), "stub")
 
     def test_node_diag_snapshot(self) -> None:
         self.assertEqual(classify_node_diag_text("oom_pids=[9]\noom_kill=0\n"), "node_local")

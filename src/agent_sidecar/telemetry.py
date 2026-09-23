@@ -210,7 +210,25 @@ def anomalies_from_artifacts(run_dir: Path) -> list[dict[str, Any]]:
     return out
 
 
+_ROLLUP_PRIORITY = (
+    "mpi_abort",
+    "mpi_segfault",
+    "mpi_fpe",
+    "mpi_deadlock",
+    "slurm_oom",
+    "node_local",
+    "node_fail",
+    "timeout",
+    "cancelled",
+    "slurm_failed",
+)
+
+
 def rollup_reason_code(anomalies: list[dict[str, Any]], *, user_exit: int) -> str:
-    if anomalies:
-        return str(anomalies[0]["reason_code"])
-    return "ok" if user_exit == 0 else "execution_error"
+    """Pick primary reason_code. MPI-specific codes beat timeout/slurm_failed."""
+    codes = [str(a["reason_code"]) for a in anomalies if a.get("reason_code")]
+    if not codes:
+        return "ok" if user_exit == 0 else "execution_error"
+    rank = {code: i for i, code in enumerate(_ROLLUP_PRIORITY)}
+    default = len(_ROLLUP_PRIORITY)
+    return min(codes, key=lambda code: rank.get(code, default))

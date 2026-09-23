@@ -122,6 +122,19 @@ class TestSlurmTap(unittest.TestCase):
                 codes = [a["reason_code"] for a in anomalies_from_artifacts(run_dir)]
                 self.assertIn(expected, codes, state)
 
+    def test_case_15_node_fail_inject_is_node_fail(self) -> None:
+        """15 Prolog/Epilog NODE_FAIL: inject sacct/scontrol text; do not drain nodes."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tool, run_dir = _start(tmp, scontrol_text=_scontrol("NODE_FAIL"))
+            self.assertEqual(tool.events()[0].reason_code, "node_fail")
+            codes = [a["reason_code"] for a in anomalies_from_artifacts(run_dir)]
+            self.assertEqual(codes, ["node_fail"])
+        with tempfile.TemporaryDirectory() as tmp:
+            tool, run_dir = _start(tmp, sacct_text=SACCT)
+            self.assertEqual(tool.events()[0].reason_code, "node_fail")
+            snap = json.loads((run_dir / "events" / "slurm.json").read_text(encoding="utf-8"))
+            self.assertEqual(snap["State"], "NODE_FAIL")
+
     def test_constructed_sacct_node_fail_reaches_anomalies(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tool, run_dir = _start(tmp, sacct_text=SACCT)

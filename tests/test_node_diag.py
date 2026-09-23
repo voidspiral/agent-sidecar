@@ -302,6 +302,18 @@ class TestDefaultNodeCollect(unittest.TestCase):
 
 
 class TestClassifyNodeDiag(unittest.TestCase):
+    def test_case_2a_killed_process_inject_is_node_local(self) -> None:
+        """2a kernel OOM is artifact inject only; never an srun demo."""
+        dmesg = "Out of memory: Killed process 4242 (app) total-vm:100000kB"
+        self.assertEqual(classify_node_diag_text(dmesg), "node_local")
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = JobContext(job_id="1", host="h1", output_dir=Path(tmp))
+            tool = NodeDiag(dmesg_text=dmesg)
+            tool.start(ctx)
+            self.assertEqual(tool.events()[0].reason_code, "node_local")
+            codes = [a["reason_code"] for a in anomalies_from_artifacts(Path(tmp))]
+            self.assertIn("node_local", codes)
+
     def test_classify_oom_pids_and_oom_kill(self) -> None:
         self.assertEqual(classify_node_diag_text("oom_pids=[4242]\noom_kill=0\n"), "node_local")
         self.assertEqual(classify_node_diag_text("oom_pids=[]\noom_kill=2\n"), "node_local")

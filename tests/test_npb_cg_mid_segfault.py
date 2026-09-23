@@ -13,8 +13,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 ROOT = Path(__file__).resolve().parents[1]
-PATCH = ROOT / "examples" / "npb_cg_mid_segfault" / "cg.f90.patch"
-BUILD = ROOT / "examples" / "npb_cg_mid_segfault" / "build.sh"
+PATCH = ROOT / "examples" / "03" / "npb_cg_mid_segfault" / "cg.f90.patch"
+BUILD = ROOT / "examples" / "03" / "npb_cg_mid_segfault" / "build.sh"
 SNIPPET_CG = ROOT / "tests" / "fixtures" / "npb_cg_loop.f90"
 CANDIDATE_NPB = (
     Path(os.environ["NPB_MPI_ROOT"])

@@ -137,7 +137,10 @@ fail-soft (`collect_errors.live_plot`) and does not change the user exit code.
 
 An MPI sample lives in `examples/mpi_io_load.c`: ~60s NFS write/fsync/read
 per rank, then a 30s local CPU burn (`mpi_io_load [io_seconds] [work_dir]
-[cpu_seconds]`; pass `0` as the third argument to skip CPU). The test cluster
+[cpu_seconds]`; pass `0` as the third argument to skip CPU). Fault cases live
+under `examples/<id>/` matching the research table (`03` segfault, `06x`
+abort, `10` launch-fail; `2a`/`2b` share `02`). `make -C examples` recurses
+every case (empty `all` if unfinished). The test cluster
 exports NFS at `/shared` (`mn:/shared`). Place the tree, binary, IO scratch,
 and run output there so every node sees the same files:
 

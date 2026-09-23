@@ -3,11 +3,11 @@
 # Requires NPB_MPI_ROOT = NPB3.4-MPI directory (contains CG/cg.f90).
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$HERE/../.." && pwd)"
+CASE="$(cd "$HERE/.." && pwd)"
 CLASS="${NPB_CG_CLASS:-B}"
 SHARED="${AGENT_SHARED:-/shared}"
 WORK="${NPB_BUILD_DIR:-$SHARED/npb-build/cg-mid-segfault}"
-DEST="$ROOT/examples/cg.${CLASS}.x"
+DEST="$CASE/cg.${CLASS}.x"
 
 if [[ -z "${NPB_MPI_ROOT:-}" ]]; then
   echo "NPB_MPI_ROOT must point at the NPB 3.4-MPI directory (contains CG/cg.f90)." >&2

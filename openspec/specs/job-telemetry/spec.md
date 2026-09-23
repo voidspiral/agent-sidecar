@@ -93,6 +93,17 @@ nulls when series exist or are empty. `anomalies` MUST include tool events.
 - **WHEN** a tool emitted `mpi_abort` and job-assist is enabled
 - **THEN** `anomalies` contains `mpi_abort` before the model is invoked
 
+### Requirement: reason_code rollup prefers MPI-specific codes
+`rollup_reason_code` SHALL pick a primary `reason_code` by a fixed priority list, not by `events/` filename order. MPI-specific codes (`mpi_abort`, `mpi_segfault`, `mpi_fpe`, `mpi_deadlock`) MUST outrank `timeout` and `slurm_failed`. `slurm_oom`, `node_local`, and `node_fail` MUST still outrank generic `execution_error`.
+
+#### Scenario: Deadlock marker plus SLURM TIMEOUT
+- **WHEN** `events/stderr.tail` contains `rank N deadlock` and `events/slurm.json` reports TIMEOUT
+- **THEN** `JobTelemetry.reason_code` is `mpi_deadlock`
+
+#### Scenario: SIGFPE plus SLURM FAILED
+- **WHEN** stderr classifies as `mpi_fpe` and accounting reports FAILED
+- **THEN** `JobTelemetry.reason_code` is `mpi_fpe`
+
 ### Requirement: Live series and optional charts before assist
 After sidecars stop and before any job-assist OpenCode spawn, the launch host
 SHALL write `JobTelemetry` whose `summary` includes peak and average CPU, peak

@@ -13,6 +13,7 @@ import unittest
 from pathlib import Path
 
 from agent_sidecar.chart_markers import (
+    CHART_MARKER_CODES,
     load_markers,
     marker_path,
     markers_in_range,
@@ -23,6 +24,10 @@ from agent_sidecar.telemetry import ensure_run_layout
 
 
 class TestChartMarkers(unittest.TestCase):
+    def test_fpe_and_deadlock_are_marker_codes(self) -> None:
+        self.assertIn("mpi_fpe", CHART_MARKER_CODES)
+        self.assertIn("mpi_deadlock", CHART_MARKER_CODES)
+
     def test_event_accepts_optional_ts(self) -> None:
         ev = Event(reason_code="mpi_abort", ts=12.5)
         self.assertEqual(ev.ts, 12.5)
@@ -123,8 +128,7 @@ class TestChartMarkers(unittest.TestCase):
             )
             old = anomalies_from_artifacts(run_dir)
             self.assertTrue(all("ts" not in a for a in old))
-            codes = [a["reason_code"] for a in old]
-            self.assertEqual(rollup_reason_code(old, user_exit=1), codes[0])
+            self.assertEqual(rollup_reason_code(old, user_exit=1), "mpi_abort")
             record_marker(
                 run_dir,
                 reason_code="mpi_abort",

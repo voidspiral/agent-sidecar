@@ -10,7 +10,14 @@ from typing import Any, Iterable
 from agent_sidecar.spi import Event
 
 CHART_MARKER_CODES = frozenset(
-    {"mpi_abort", "mpi_segfault", "slurm_oom", "node_local"}
+    {
+        "mpi_abort",
+        "mpi_segfault",
+        "mpi_fpe",
+        "mpi_deadlock",
+        "slurm_oom",
+        "node_local",
+    }
 )
 _HOST_RE = re.compile(r"[^A-Za-z0-9._-]+")
 

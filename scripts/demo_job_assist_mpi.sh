@@ -43,7 +43,7 @@ if [[ -z "$MPICC" ]]; then
   exit 1
 fi
 BIN="$ROOT/examples/mpi_io_load"
-"$MPICC" -O2 -Wall -Wextra -o "$BIN" "$ROOT/examples/mpi_io_load.c"
+make -C "$ROOT/examples" mpi_io_load CC="$MPICC"
 test -x "$BIN"
 echo "compiled $BIN with $MPICC"
 echo

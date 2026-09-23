@@ -16,12 +16,18 @@ SLURM_STATE_CODES = {
 SUCCESS_STATES = {"COMPLETED", "COMPLETING", "RUNNING", "PENDING", "CONFIGURING"}
 
 MPI_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    # Segfault before abort so abort-family strings stay orthogonal.
+    # Segfault / FPE / deadlock before abort so abort-family strings stay orthogonal.
     (re.compile(r"rank\s+\d+\s+segfault", re.IGNORECASE), "mpi_segfault"),
     (re.compile(r"Segmentation\s+fault", re.IGNORECASE), "mpi_segfault"),
     (re.compile(r"\bSIGSEGV\b"), "mpi_segfault"),
     (re.compile(r"\bsignal\s*11\b", re.IGNORECASE), "mpi_segfault"),
     (re.compile(r"exited\s+(?:on|with)\s+signal\s*11", re.IGNORECASE), "mpi_segfault"),
+    (re.compile(r"rank\s+\d+\s+fpe", re.IGNORECASE), "mpi_fpe"),
+    (re.compile(r"Floating\s+point\s+exception", re.IGNORECASE), "mpi_fpe"),
+    (re.compile(r"\bSIGFPE\b"), "mpi_fpe"),
+    (re.compile(r"\bsignal\s*8\b", re.IGNORECASE), "mpi_fpe"),
+    (re.compile(r"exited\s+(?:on|with)\s+signal\s*8", re.IGNORECASE), "mpi_fpe"),
+    (re.compile(r"rank\s+\d+\s+deadlock", re.IGNORECASE), "mpi_deadlock"),
     (re.compile(r"MPI_Abort"), "mpi_abort"),
     (re.compile(r"PMIx.*abort", re.IGNORECASE), "mpi_abort"),
     (re.compile(r"assert\s*\(\s*!closed\s*\)"), "mpi_abort"),

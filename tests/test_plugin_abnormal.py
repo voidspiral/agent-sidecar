@@ -46,7 +46,10 @@ MPI_CASES = (
     ("disconnected rank 3 detected", "mpi_abort"),
     ("rank 0 segfault (null deref)", "mpi_segfault"),
     ("Segmentation fault", "mpi_segfault"),
-    ("Rank 2 exited with signal 11", "mpi_segfault"),
+            ("Rank 2 exited with signal 11", "mpi_segfault"),
+    ("rank 0 fpe (SIGFPE)", "mpi_fpe"),
+    ("Floating point exception", "mpi_fpe"),
+    ("rank 0 deadlock (skip barrier)", "mpi_deadlock"),
 )
 
 NODE_DIAG_CASES = (

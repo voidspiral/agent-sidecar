@@ -5,7 +5,7 @@ set -u
 SHARED="${AGENT_SHARED:-/shared}"
 ROOT="${1:-$SHARED/agent-sidecar}"
 OUT="${2:-$SHARED/agent-runs}"
-MISSING="${AGENT_LAUNCH_FAIL_BIN:-$ROOT/examples/no-such-mpi}"
+MISSING="${AGENT_LAUNCH_FAIL_BIN:-$ROOT/examples/10/no-such-mpi}"
 MPI_SRC="${AGENT_MPI_MONITOR_SRC:-$SHARED/mpi-monitor/src}"
 
 export PYTHONPATH="${ROOT}/src:${MPI_SRC}${PYTHONPATH:+:$PYTHONPATH}"

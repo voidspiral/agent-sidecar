@@ -24,6 +24,10 @@ class TestMpiScan(unittest.TestCase):
         self.assertEqual(scan_stderr("rank 0 segfault (null deref)"), "mpi_segfault")
         self.assertEqual(scan_stderr("*** Signal 11 ***"), "mpi_segfault")
 
+    def test_fpe_and_deadlock_patterns(self) -> None:
+        self.assertEqual(scan_stderr("rank 0 fpe (SIGFPE)"), "mpi_fpe")
+        self.assertEqual(scan_stderr("rank 1 deadlock (skip barrier)"), "mpi_deadlock")
+
     def test_plugin_emits_event(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ctx = JobContext(job_id="1", host="h1", output_dir=Path(tmp))

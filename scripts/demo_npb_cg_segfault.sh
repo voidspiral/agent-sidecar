@@ -24,8 +24,8 @@ if [[ -z "${NPB_MPI_ROOT:-}" ]]; then
 fi
 export NPB_CG_CLASS="$CLASS"
 export AGENT_SHARED="$SHARED"
-bash "$ROOT/examples/npb_cg_mid_segfault/build.sh"
-BIN="$ROOT/examples/cg.${CLASS}.x"
+make -C "$ROOT/examples/03" npb
+BIN="$ROOT/examples/03/cg.${CLASS}.x"
 test -x "$BIN"
 MATCH="$(basename "$BIN")"
 echo "binary=$BIN match=$MATCH"
