@@ -52,6 +52,23 @@ class TestRollupReasonCode(unittest.TestCase):
             anomalies = anomalies_from_artifacts(run_dir)
             self.assertEqual(rollup_reason_code(anomalies, user_exit=136), "mpi_fpe")
 
+    def test_time_limit_stderr_is_timeout_without_sacct(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            events = run_dir / "events"
+            events.mkdir()
+            (events / "slurm.json").write_text(
+                json.dumps({"JobState": "RUNNING"}) + "\n", encoding="utf-8"
+            )
+            (events / "stderr.tail").write_text(
+                "slurmstepd: error: *** STEP 9.0 ON cn1 CANCELLED AT 2026-09-22T03:03:46 "
+                "DUE TO TIME LIMIT ***\n",
+                encoding="utf-8",
+            )
+            anomalies = anomalies_from_artifacts(run_dir)
+            self.assertIn("timeout", [a["reason_code"] for a in anomalies])
+            self.assertEqual(rollup_reason_code(anomalies, user_exit=143), "timeout")
+
     def test_mpi_abort_still_wins_alone(self) -> None:
         anomalies = [{"reason_code": "mpi_abort"}]
         self.assertEqual(rollup_reason_code(anomalies, user_exit=1), "mpi_abort")

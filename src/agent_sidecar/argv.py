@@ -21,6 +21,7 @@ KNOWN_AGENT_FLAGS = {
     "agent-interval",
     "agent-live-plot",
     "agent-no-live-plot",
+    "agent-overlap",
 }
 
 BOOLEAN_AGENT_FLAGS = {
@@ -29,6 +30,7 @@ BOOLEAN_AGENT_FLAGS = {
     "agent-quiet",
     "agent-live-plot",
     "agent-no-live-plot",
+    "agent-overlap",
 }
 
 PROFILES = frozenset({"tools-only", "node-assist", "job-assist"})
@@ -57,6 +59,7 @@ class AgentOptions:
     match: str | None = None
     interval: float = 1.0
     live_plot_cli: bool | None = None
+    overlap: bool = False
 
 
 @dataclass
@@ -163,6 +166,8 @@ def _assign(options: AgentOptions, name: str, value: str, *, present: bool) -> N
         options.live_plot_cli = True
     elif name == "agent-no-live-plot":
         options.live_plot_cli = False
+    elif name == "agent-overlap":
+        options.overlap = present
 
 
 def validate_profile(profile: str) -> str:

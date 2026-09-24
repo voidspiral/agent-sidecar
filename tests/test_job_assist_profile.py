@@ -137,6 +137,7 @@ class TestJobAssistProfile(unittest.TestCase):
             parsed = parse_agent_argv(
                 [
                     "srun",
+                    "--agent-overlap",
                     "--agent-profile=job-assist",
                     "--agent-output-dir",
                     tmp,
@@ -219,8 +220,7 @@ class TestJobAssistProfile(unittest.TestCase):
             )
             self.assertEqual(code, 0)
             self.assertEqual(parsed.options.profile, "job-assist")
-            self.assertTrue(seen)
-            self.assertIn("--overlap", seen[0])
+            self.assertEqual(seen, [])
             self.assertEqual(len(runner.calls), 0)
             self.assertTrue((run_dir / "telemetry.json").is_file())
             note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
@@ -254,7 +254,7 @@ class TestJobAssistProfile(unittest.TestCase):
                 live_watcher=watch,
                 tty=False,
             )
-            self.assertEqual(timeline, ["sidecar"])
+            self.assertEqual(timeline, [])
             self.assertEqual(watch.order, ["start", "user", "stop"])
 
     def test_tty_prints_attach_hint_without_stealing_srun(self) -> None:
@@ -290,6 +290,7 @@ class TestJobAssistProfile(unittest.TestCase):
             parsed = parse_agent_argv(
                 [
                     "srun",
+                    "--agent-overlap",
                     "--agent-profile=tools-only",
                     "--agent-node-llm",
                     "--agent-output-dir",
@@ -335,6 +336,7 @@ class TestJobAssistProfile(unittest.TestCase):
             parsed = parse_agent_argv(
                 [
                     "srun",
+                    "--agent-overlap",
                     "--agent-profile=job-assist",
                     "--agent-output-dir",
                     tmp,
@@ -376,6 +378,7 @@ class TestJobAssistProfile(unittest.TestCase):
             parsed = parse_agent_argv(
                 [
                     "srun",
+                    "--agent-overlap",
                     "--agent-profile=job-assist",
                     "--agent-output-dir",
                     tmp,
@@ -436,7 +439,7 @@ class TestJobAssistProfile(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             parsed = parse_agent_argv(
-                ["srun", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
+                ["srun", "--agent-overlap", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
             )
 
             def run_sidecar(argv: list[str]) -> int:

@@ -218,7 +218,7 @@ class TestQuietReport(unittest.TestCase):
                 )
             self.assertEqual(code, 0)
             text = buf.getvalue()
-            self.assertIn("[agent] sidecar started", text)
+            self.assertNotIn("[agent] sidecar started", text)
             self.assertIn("[agent] user step started", text)
             self.assertIn("[agent] user exit=0", text)
             self.assertIn("======== agent report ========", text)

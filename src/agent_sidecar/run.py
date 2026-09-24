@@ -20,8 +20,8 @@ from agent_sidecar.argv import (
 )
 from agent_sidecar.assist import run_job_assist
 from agent_sidecar.chart_markers import record_marker
-from agent_sidecar.classify import classify_mpi_text
-from agent_sidecar.launch import LaunchPlan, execute_launch, plan_overlap
+from agent_sidecar.classify import classify_mpi_text, classify_slurm_text
+from agent_sidecar.launch import LaunchPlan, execute_launch, plan_overlap, plan_user_step
 from agent_sidecar.live_opencode import ATTACH_HINT, LiveWatcher
 from agent_sidecar.telemetry import (
     anomalies_from_artifacts,
@@ -72,7 +72,7 @@ def _maybe_record_stderr_marker(dest: Path) -> None:
         text = dest.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return
-    code = classify_mpi_text(text)
+    code = classify_mpi_text(text) or classify_slurm_text(text)
     if not code:
         return
     record_marker(
@@ -80,7 +80,7 @@ def _maybe_record_stderr_marker(dest: Path) -> None:
         reason_code=code,
         host="submit",
         evidence_path="events/stderr.tail",
-        message="mpi runtime fault",
+        message="mpi runtime fault" if code != "timeout" else "DUE TO TIME LIMIT",
     )
 
 
@@ -302,15 +302,20 @@ def wrap_srun(
                 plot_srv.stop()
 
     try:
-        plan = plan_overlap(parsed.passthrough, supervisor)
-        code, used = execute_launch(
-            plan,
-            run_sidecar=run_sidecar,
-            run_user=run_user_with_live,
-            overlap_ok=overlap_ok,
-            passthrough=parsed.passthrough,
-            wrap_argv=[*py_mod, "exec-wrap"],
-        )
+        if parsed.options.overlap:
+            plan = plan_overlap(parsed.passthrough, supervisor)
+            code, used = execute_launch(
+                plan,
+                run_sidecar=run_sidecar,
+                run_user=run_user_with_live,
+                overlap_ok=overlap_ok,
+                passthrough=parsed.passthrough,
+                wrap_argv=[*py_mod, "exec-wrap"],
+            )
+        else:
+            plan = plan_user_step(parsed.passthrough)
+            code = run_user_with_live(plan.user_argv)
+            used = plan
     finally:
         if prev_tail is None:
             os.environ.pop(AGENT_STDERR_TAIL, None)

@@ -4,6 +4,13 @@
  * Do NOT size this to fill the node.
  * 2a kernel OOM (dmesg "Killed process" → node_local) is unittest-only;
  * never run this binary as an srun demo intended to trigger the kernel OOM killer.
+ *
+ * This cluster (Slurm 21.08, CR_Core, proctrack/linuxproc, no cgroup.conf)
+ * does not enforce --mem. malloc succeeds and the process exits 0, so the
+ * sidecar records ok, not slurm_oom. --mem is only a scheduler request until
+ * CR_Core_Memory + proctrack/cgroup + task/cgroup + ConstrainRAMSpace=yes.
+ * Accounting is off, so JobState stays RUNNING; slurm_oom is recognized only
+ * from OUT_OF_MEMORY/OOM, not from cgroup kill text in stderr.
  */
 #define _DEFAULT_SOURCE
 #include <stdio.h>

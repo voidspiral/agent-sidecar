@@ -28,16 +28,20 @@ When wrapping `srun`, the CLI MUST start at most one supervisor per allocated no
 - **WHEN** injecting collectors for a multi-rank `srun`
 - **THEN** the CLI MUST NOT emit `srun bash -c '… & exec …'` as the user step
 
-### Requirement: Overlap step is the default injector with exec-wrapper fallback
-The CLI SHALL prefer an extra SLURM step with `--overlap --ntasks-per-node=1` and an explicit CPU/memory bound for the supervisor. If overlap is rejected by the site, the CLI SHALL fall back to an exec-wrapper that forks a collector then execs the user binary in the same task. A node-assist agent MUST NOT be started once per rank in the exec-wrapper fallback.
+### Requirement: Overlap injection is opt-in with exec-wrapper fallback
+The CLI SHALL launch the user `srun` without an overlap supervisor unless `--agent-overlap` is set. When that flag is set, the CLI SHALL start an extra SLURM step with `--overlap --ntasks-per-node=1` and an explicit CPU/memory bound for the supervisor. If that overlap step is rejected or fails before the user command starts, the CLI SHALL stop the overlap step and fall back once to an exec-wrapper that forks a collector then execs the user binary in the same task. A node-assist agent MUST NOT be started once per rank in the exec-wrapper fallback.
+
+#### Scenario: Default srun does not overlap
+- **WHEN** the user runs `agent srun` without `--agent-overlap`
+- **THEN** the CLI does not emit `srun --overlap` and launches only the user step
 
 #### Scenario: Overlap supervisor on each node
-- **WHEN** the allocation allows overlapping steps
+- **WHEN** the user passes `--agent-overlap` and the allocation allows overlapping steps
 - **THEN** the CLI starts one supervisor step with `--ntasks-per-node=1` and a memory bound before the user step
 
 #### Scenario: Exec-wrapper fallback
-- **WHEN** the overlap step fails because overlap is disabled
-- **THEN** the CLI retries once with exec-wrapper injection for tools only and records the fallback in telemetry
+- **WHEN** `--agent-overlap` is set and the overlap step fails because overlap is disabled
+- **THEN** the CLI does not leave the overlap step running and retries once with exec-wrapper injection for tools only, recording the fallback in telemetry
 
 ### Requirement: Sidecars follow job lifetime
 Sidecar processes SHALL start before or with the user step and MUST terminate after the user step returns (bounded join). Sidecars MUST NOT remain as node daemons after the job ends.

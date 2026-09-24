@@ -57,11 +57,60 @@ class TestCli(unittest.TestCase):
             )
             code = cmd_srun(parsed, run_sidecar=run_sidecar, run_user=run_user, live_plotter=NoPlot())
             self.assertEqual(code, 0)
-            self.assertIn("--overlap", seen["sidecar"])
-            self.assertIn("proc-monitor,mpi-scan,slurm-tap,node-diag,eth-monitor", seen["sidecar"])
+            self.assertNotIn("sidecar", seen)
             self.assertEqual(seen["user"][0], "srun")
             self.assertIn("true", seen["user"])
+            self.assertNotIn("--overlap", seen["user"])
             self.assertNotIn("--agent-profile=tools-only", seen["user"])
+
+    def test_agent_overlap_opens_then_falls_back(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            seen: dict[str, list[str]] = {}
+
+            def run_sidecar(argv: list[str]) -> int:
+                seen["sidecar"] = argv
+                return 0
+
+            def run_user(argv: list[str]) -> int:
+                seen["user"] = argv
+                return 0
+
+            parsed = parse_agent_argv(
+                [
+                    "srun",
+                    "--agent-overlap",
+                    "--agent-output-dir",
+                    tmp,
+                    "-n",
+                    "1",
+                    "--",
+                    "true",
+                ]
+            )
+            code = cmd_srun(
+                parsed,
+                run_sidecar=run_sidecar,
+                run_user=run_user,
+                live_plotter=NoPlot(),
+                overlap_ok=True,
+            )
+            self.assertEqual(code, 0)
+            self.assertIn("--overlap", seen["sidecar"])
+            self.assertIn("proc-monitor,mpi-scan,slurm-tap,node-diag,eth-monitor", seen["sidecar"])
+            self.assertNotIn("exec-wrap", seen["user"])
+
+            seen.clear()
+            code = cmd_srun(
+                parsed,
+                run_sidecar=run_sidecar,
+                run_user=run_user,
+                live_plotter=NoPlot(),
+                overlap_ok=False,
+            )
+            self.assertEqual(code, 0)
+            self.assertNotIn("sidecar", seen)
+            self.assertIn("exec-wrap", seen["user"])
+            self.assertNotIn("--overlap", seen["user"])
 
     def test_default_srun_is_quiet_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -90,7 +139,8 @@ class TestCli(unittest.TestCase):
                 )
             self.assertEqual(code, 0)
             text = buf.getvalue()
-            self.assertIn("[agent] sidecar started", text)
+            self.assertNotIn("[agent] sidecar started", text)
+            self.assertIn("[agent] user step started", text)
             self.assertIn("======== agent report ========", text)
             self.assertNotIn("passthrough=", text)
         with tempfile.TemporaryDirectory() as tmp:

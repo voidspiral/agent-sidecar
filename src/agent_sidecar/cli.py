@@ -125,7 +125,8 @@ def cmd_srun(
         _log(f"profile={parsed.options.profile} skills={parsed.options.skills or DEFAULT_SKILLS}")
         _log("passthrough=" + " ".join(parsed.passthrough))
     if quiet:
-        _log("sidecar started")
+        if parsed.options.overlap:
+            _log("sidecar started")
         _log("user step started")
 
     code, run_dir, plan = wrap_srun(

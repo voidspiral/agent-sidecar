@@ -114,7 +114,7 @@ python3 -m agent_sidecar deploy --mpi-monitor /path/to/mpi-monitor --eth-monitor
 The tool rsyncs this repo to `/shared/agent-sidecar`, mpi-monitor to
 `/shared/mpi-monitor`, and eth-monitor to `/shared/eth-monitor`, then prints
 `AGENT_MPI_MONITOR_SRC`, `AGENT_ETH_MONITOR_SRC`, and `PYTHONPATH`.
-`agent srun` injects those paths for the overlap supervisor; you do not need
+`agent srun --agent-overlap` injects those paths for the overlap supervisor; you do not need
 to export `PYTHONPATH` for wrapped jobs. Missing mpi-monitor or eth-monitor
 is fail-soft (`events/mpi_monitor_import.err`, `events/eth_monitor_import.err`).
 
@@ -139,7 +139,10 @@ An MPI sample lives in `examples/mpi_io_load.c`: ~60s NFS write/fsync/read
 per rank, then a 30s local CPU burn (`mpi_io_load [io_seconds] [work_dir]
 [cpu_seconds]`; pass `0` as the third argument to skip CPU). Fault cases live
 under `examples/<id>/` matching the research table (`03` segfault, `06x`
-abort, `10` launch-fail; `2a`/`2b` share `02`). `make -C examples` recurses
+abort, `10` launch-fail; `2a`/`2b` share `02`). Chinese notes live beside
+the fixtures: [examples/README.md](examples/README.md),
+[examples/测试.md](examples/测试.md),
+[examples/调研2.md](examples/调研2.md). `make -C examples` recurses
 every case (empty `all` if unfinished). The test cluster
 exports NFS at `/shared` (`mn:/shared`). Place the tree, binary, IO scratch,
 and run output there so every node sees the same files:

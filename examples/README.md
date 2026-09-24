@@ -4,7 +4,7 @@
 `mpi_io_load.c`。硬件 `18`–`23` 的 `all` 仍为空目标。`2a` 与 `2b` 合成 `02/`
 （2a 仅单测注入，禁止 srun 撑节点）。
 
-两条入口与仓库根 `测试.md` 相同：
+两条入口与同目录 [测试.md](测试.md) 相同：
 
 - `sidecar.sh [--agent-*] srun <原生 slurm> <用户命令>`
 - `sidecar-analy.sh --log DIR --code SRC`

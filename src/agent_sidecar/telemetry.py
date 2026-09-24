@@ -12,6 +12,7 @@ from agent_sidecar.classify import (
     classify_mpi_text,
     classify_node_diag_text,
     classify_slurm_state,
+    classify_slurm_text,
 )
 
 
@@ -176,6 +177,21 @@ def anomalies_from_artifacts(run_dir: Path) -> list[dict[str, Any]]:
                                 marker_ts,
                             )
                         )
+        slurm_text = classify_slurm_text(text)
+        if slurm_text:
+            key = (slurm_text, rel)
+            if key not in seen:
+                seen.add(key)
+                out.append(
+                    _with_marker_ts(
+                        {
+                            "reason_code": slurm_text,
+                            "message": "DUE TO TIME LIMIT",
+                            "evidence_path": rel,
+                        },
+                        marker_ts,
+                    )
+                )
         mpi = classify_mpi_text(text)
         if mpi:
             key = (mpi, rel)

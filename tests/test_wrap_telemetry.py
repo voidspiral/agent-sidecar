@@ -21,7 +21,7 @@ from agent_sidecar.telemetry import load_telemetry
 
 def _wrap(tmp: str, *, populate):
     parsed = parse_agent_argv(
-        ["srun", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
+        ["srun", "--agent-overlap", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
     )
 
     def run_sidecar(argv: list[str]) -> int:
@@ -45,7 +45,7 @@ class TestWrapTelemetry(unittest.TestCase):
     def test_sidecar_stops_before_series_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             parsed = parse_agent_argv(
-                ["srun", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
+                ["srun", "--agent-overlap", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
             )
             order: list[str] = []
 
@@ -263,7 +263,7 @@ class TestWrapTelemetry(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             parsed = parse_agent_argv(
-                ["srun", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
+                ["srun", "--agent-overlap", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
             )
             code, run_dir, _plan = wrap_srun(
                 parsed,
@@ -300,6 +300,7 @@ class TestWrapTelemetry(unittest.TestCase):
             parsed = parse_agent_argv(
                 [
                     "srun",
+                    "--agent-overlap",
                     "--agent-output-dir",
                     tmp,
                     "-n",
@@ -333,6 +334,7 @@ class TestWrapTelemetry(unittest.TestCase):
             parsed = parse_agent_argv(
                 [
                     "srun",
+                    "--agent-overlap",
                     "--agent-match=mpi_io_load",
                     "--agent-output-dir",
                     tmp,
@@ -363,7 +365,7 @@ class TestWrapTelemetry(unittest.TestCase):
     def test_wrap_refreshes_slurm_step_timeout_after_user(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             parsed = parse_agent_argv(
-                ["srun", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
+                ["srun", "--agent-overlap", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
             )
 
             def collect(job_id: str) -> tuple[str, str]:
@@ -395,7 +397,7 @@ class TestWrapTelemetry(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             parsed = parse_agent_argv(
-                ["srun", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
+                ["srun", "--agent-overlap", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
             )
 
             def run_user(_argv: list[str]) -> int:
@@ -433,7 +435,7 @@ class TestWrapTelemetry(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             parsed = parse_agent_argv(
-                ["srun", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
+                ["srun", "--agent-overlap", "--agent-output-dir", tmp, "-n", "1", "--", "true"]
             )
 
             def run_user(_argv: list[str]) -> int:

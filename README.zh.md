@@ -54,6 +54,7 @@ sidecar.sh --agent-output-dir ./runs srun -N 2 -n 4 ./app
 | `--agent-profile` | `job-assist`（默认）、`tools-only`（无 OpenCode）、`node-assist` |
 | `--agent-skills` | 节点 sidecar 加载的工具，逗号分隔 |
 | `--agent-output-dir` | run 目录的父路径（或设 `AGENT_JOB_DIR`） |
+| `--agent-overlap` | 测试时打开 overlap supervisor；默认关闭。该步失败或作业结束则停掉并回退 |
 | `--agent-verbose` | 打印 overlap sidecar / 用户 step 的启动过程 |
 | `--agent-quiet` | 只打关键步骤，结束时写出紧凑 `report.txt`（header、job-assist、metrics、hosts、证据计数；也可用 `AGENT_QUIET=1`） |
 | `--agent-node-llm` | 可选节点模型；记录为不支持 |
@@ -127,7 +128,10 @@ OpenCode；若已有 `assist/live.json` 摘要则提升为 `assist/job.json`。
 MPI 示例见 `examples/mpi_io_load.c`：每 rank 先约 60 秒 NFS 写/fsync/读，
 再 30 秒本地 CPU burn（`mpi_io_load [io_seconds] [work_dir] [cpu_seconds]`；
 第三参数传 `0` 则跳过 CPU）。故障用例目录名等于调研总表 ID（`03` 段错误、
-`06x` Abort、`10` 启动失败；`2a`/`2b` 合成 `02`）。`make -C examples` 递归
+`06x` Abort、`10` 启动失败；`2a`/`2b` 合成 `02`）。中文说明在
+`examples/`：cookbook [examples/README.md](examples/README.md)、
+集群记录 [examples/测试.md](examples/测试.md)、调研
+[examples/调研2.md](examples/调研2.md)。`make -C examples` 递归
 全部目录，未完成项的 `all` 为空目标。本集群 NFS 挂在
 `/shared`（`mn:/shared`）。源码、二进制、IO scratch 和 run 产物都放这里，
 各节点同一份文件：
@@ -157,8 +161,9 @@ OpenCode skills：`.opencode/skills/`（索引见 [.opencode/skills.md](.opencod
 `agent supervisor`、`agent report --run-dir DIR`、
 `agent deploy --mpi-monitor DIR --eth-monitor DIR`（同步到 `/shared`）。
 
-默认注入是 overlap step（每节点 1 个 supervisor，`--mem=256M`），用户 `srun`
-单独一步以保留 PMI。overlap 在用户命令启动前失败时，回退一次 exec-wrapper。
+默认不注入 overlap，用户 `srun` 单独一步。测试时加 `--agent-overlap` 才起
+每节点 1 个 supervisor（`--mem=256M`）。该步在用户命令启动前失败，或作业结束时，
+停掉 overlap 并回退一次 exec-wrapper。
 
 ## 已实现的 skills
 

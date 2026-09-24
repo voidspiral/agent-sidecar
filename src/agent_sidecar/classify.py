@@ -49,6 +49,15 @@ def classify_slurm_state(state: str) -> str | None:
     return "slurm_failed" if raw not in {"UNKNOWN"} else None
 
 
+def classify_slurm_text(text: str) -> str | None:
+    """Step timeout printed by slurmstepd when accounting has no TIMEOUT row."""
+    if not text:
+        return None
+    if re.search(r"DUE TO TIME LIMIT", text, re.IGNORECASE):
+        return "timeout"
+    return None
+
+
 def classify_mpi_text(text: str) -> str | None:
     if not text:
         return None

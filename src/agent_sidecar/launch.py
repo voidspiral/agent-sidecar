@@ -25,6 +25,18 @@ def _is_forbidden_user_step(user_argv: list[str]) -> bool:
     return "bash -c" in joined and "& exec" in joined
 
 
+def plan_user_step(
+    passthrough: list[str],
+    *,
+    srun: str = "srun",
+) -> LaunchPlan:
+    """User srun only. Overlap injection stays off unless a test opts in."""
+    user = [srun, *passthrough]
+    if _is_forbidden_user_step(user):
+        raise ValueError("per-rank bash wrapper is forbidden")
+    return LaunchPlan(mode="user", sidecar_argv=[], user_argv=user)
+
+
 def plan_overlap(
     passthrough: list[str],
     supervisor_argv: list[str],
