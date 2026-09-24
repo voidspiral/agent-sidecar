@@ -27,4 +27,3 @@ examples/05/mpi_fault_fpe
 examples/06/mpi_fault_deadlock
 examples/06x/mpi_fault_abort
 examples/07a/io_enoent
-异常用例库.md
