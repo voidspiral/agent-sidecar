@@ -24,7 +24,7 @@ class TestLaunchPlan(unittest.TestCase):
         self.assertIn("--mem=256M", plan.sidecar_argv)
         self.assertIn("-l", plan.sidecar_argv)
         self.assertEqual(plan.user_argv[0], "srun")
-        self.assertNotIn("--overlap", plan.user_argv)
+        self.assertEqual(plan.user_argv[1], "--overlap")
         self.assertEqual(plan.user_argv[-1], "./app")
         self.assertNotEqual(plan.sidecar_argv, plan.user_argv)
 

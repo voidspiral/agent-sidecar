@@ -121,8 +121,9 @@ bash /shared/agent-sidecar/scripts/sidecar.sh serve --run-dir /shared/agent-runs
 live 超时默认 300s（`AGENT_OPENCODE_TIMEOUT`）。用户步骤结束时取消 live
 OpenCode；若已有 `assist/live.json` 摘要则提升为 `assist/job.json`。
 否则保留 pack 笔记，或根据监控 summary 写确定性分条建议（健康作业也有
-建议）。默认不再 spawn 期末 OpenCode；把
-`AGENT_OPENCODE_FINAL_TIMEOUT` 设为正数才恢复 wrap OpenCode。
+建议）。正常结束（`reason_code=ok` 且无工具异常）会跑一次期末 OpenCode。
+`AGENT_OPENCODE_FINAL_TIMEOUT=0` 跳过这次调用。正数超时在故障作业结束后
+也会跑 OpenCode。模型没写出笔记时，保留确定性分条建议。
 `agent analy --llm` 仍可跑模型。
 
 MPI 示例见 `examples/mpi_io_load.c`：每 rank 先约 60 秒 NFS 写/fsync/读，
@@ -162,7 +163,9 @@ OpenCode skills：`.opencode/skills/`（索引见 [.opencode/skills.md](.opencod
 `agent deploy --mpi-monitor DIR --eth-monitor DIR`（同步到 `/shared`）。
 
 默认注入 overlap step（每节点 1 个 supervisor，`--overlap --exact --mem=256M`）。
-用户原始 `srun` 参数保持不变，不插入 `--overlap`。该步在用户命令启动前失败，
+`OverSubscribe=EXCLUSIVE` 下，节点上已有 step 时，后一条 `srun` 也必须带
+`--overlap`，否则 SLURM 报 `Requested nodes are busy`，即使节点还有空核。
+因此用户 step 只追加这一个参数，其余参数不变。该步在用户命令启动前失败，
 或作业结束时，停掉 overlap 并回退一次 exec-wrapper。`--agent-overlap` 与默认相同。
 
 ## 已实现的 skills

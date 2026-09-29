@@ -119,6 +119,9 @@ def cmd_srun(
             return
         if verbose:
             _log(f"stop sidecar before telemetry (pid={proc.pid})")
+            _log(
+                "the following CANCELLED/Killed lines are the collector srun, not the user step"
+            )
         reap_sidecar(proc, timeout=2.0)
 
     if verbose:

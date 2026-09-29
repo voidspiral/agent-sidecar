@@ -19,8 +19,11 @@ cancelled. Wrap promotes `assist/live.json` to `assist/job.json` when a live
 summary exists (`suspected_reason` copied from `reason_code`). Otherwise wrap
 keeps a pack `assist/job.json` if present, or writes a deterministic note from
 `telemetry.json` summary (healthy jobs still get numbered 建议 from
-CPU/RSS/IO/ethernet and pid counts). Wrap does not spawn post-job OpenCode
-unless `AGENT_OPENCODE_FINAL_TIMEOUT` is a positive number. `agent analy --llm`
+CPU/RSS/IO/ethernet and pid counts). A normal completion (`reason_code=ok`
+and no tool anomalies) spawns one post-job OpenCode.
+`AGENT_OPENCODE_FINAL_TIMEOUT=0` skips that call. A positive timeout also
+runs OpenCode after fault jobs. If OpenCode writes no note, wrap keeps the
+deterministic 建议. `agent analy --llm`
 may still run OpenCode. If you are writing the final note, write
 `assist/job.json`.
 Compute-node sidecars are

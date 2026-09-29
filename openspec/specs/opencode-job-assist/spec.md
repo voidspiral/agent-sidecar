@@ -3,26 +3,32 @@
 ## Purpose
 
 Defines submit-host job-assist: wrap writes `assist/job.json` after
-`JobTelemetry` exists (deterministic by default), optional bounded
-`opencode run` when `AGENT_OPENCODE_FINAL_TIMEOUT` is positive, the prompt
+`JobTelemetry` exists. A normal completion (`reason_code=ok` and no tool
+anomalies) runs one bounded `opencode run`. `AGENT_OPENCODE_FINAL_TIMEOUT=0`
+skips that call. A positive timeout also runs OpenCode after fault jobs.
+If OpenCode writes no note, wrap keeps the deterministic 建议. The prompt
 contract, fail-soft collect errors, and text-only corrected-launch advice
-that must not mutate SLURM.
+must not mutate SLURM.
 
 ## Requirements
 
 ### Requirement: Job-assist spawns OpenCode once after telemetry
 When `--agent-profile=job-assist` is set, wrap SHALL write a submit-host
-`JobAssistNote` after aggregated `JobTelemetry` exists. Wrap MUST NOT spawn
-OpenCode by default. Wrap MAY spawn at most one OpenCode invocation on the
-submitting CLI host when `AGENT_OPENCODE_FINAL_TIMEOUT` is a positive number.
-The invocation MUST use the repository as its working project. Unit tests
-MUST inject a runner and MUST NOT execute a real `opencode` binary.
+`JobAssistNote` after aggregated `JobTelemetry` exists. A normal completion
+(`reason_code=ok` and no tool anomalies) SHALL spawn one OpenCode invocation
+on the submitting CLI host when `AGENT_OPENCODE_FINAL_TIMEOUT` is unset.
+`AGENT_OPENCODE_FINAL_TIMEOUT=0` MUST skip that call and keep the
+deterministic note. A positive timeout SHALL also run OpenCode after fault
+jobs. If OpenCode writes no summary, wrap MUST keep or write the
+deterministic note. The invocation MUST use the repository as its working
+project. Unit tests MUST inject a runner and MUST NOT execute a real
+`opencode` binary.
 
-#### Scenario: Default wrap writes a note without OpenCode
-- **WHEN** `--agent-profile=job-assist` wraps a job and
-  `AGENT_OPENCODE_FINAL_TIMEOUT` is unset
-- **THEN** `assist/job.json` exists after `telemetry.json` and the OpenCode
-  runner is not invoked
+#### Scenario: Default healthy wrap runs OpenCode
+- **WHEN** `--agent-profile=job-assist` wraps a job with `reason_code=ok`,
+  no tool anomalies, and `AGENT_OPENCODE_FINAL_TIMEOUT` unset
+- **THEN** exactly one OpenCode runner call is made and `assist/job.json`
+  exists after `telemetry.json`
 
 #### Scenario: Positive FINAL_TIMEOUT restores wrap OpenCode
 - **WHEN** `AGENT_OPENCODE_FINAL_TIMEOUT` is `20`

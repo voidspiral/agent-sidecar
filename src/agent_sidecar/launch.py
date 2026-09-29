@@ -53,7 +53,13 @@ def plan_overlap(
         "-l",
         *supervisor_argv,
     ]
-    user = [srun, *passthrough]
+    # OverSubscribe=EXCLUSIVE will not create a second step on a node that
+    # already has one, even when CPUs remain, unless that step also sets
+    # --overlap. The user's other srun arguments stay unchanged.
+    user_args = list(passthrough)
+    if "--overlap" not in user_args:
+        user_args = ["--overlap", *user_args]
+    user = [srun, *user_args]
     if _is_forbidden_user_step(user):
         raise ValueError("per-rank bash wrapper is forbidden")
     return LaunchPlan(mode="overlap", sidecar_argv=sidecar, user_argv=user)

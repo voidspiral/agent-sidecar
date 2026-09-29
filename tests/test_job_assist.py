@@ -119,7 +119,8 @@ class TestJobAssist(unittest.TestCase):
             doc = load_telemetry(run_dir)
             self.assertIn("opencode_missing", doc["collect_errors"])
             self.assertEqual(doc["reason_code"], "ok")
-            self.assertFalse((run_dir / "assist" / "job.json").is_file())
+            note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
+            self.assertIn("4. 建议", note["summary"])
 
     def test_nonzero_records_and_keeps_exit(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -260,7 +261,7 @@ class TestJobAssist(unittest.TestCase):
             note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
             self.assertIn("4. 建议", note["summary"])
 
-    def test_default_ok_job_writes_hints_without_opencode(self) -> None:
+    def test_default_ok_job_runs_opencode(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)
             write_telemetry(
@@ -282,16 +283,47 @@ class TestJobAssist(unittest.TestCase):
                 attempt=1,
                 extra={"collect_errors": {}},
             )
-            runner = _ok_runner()
+            runner = _ok_runner("1. 结论：正常结束。\n4. 建议：保持当前 srun")
             code = run_job_assist(run_dir, opencode_runner=runner, user_exit=0)
             self.assertEqual(code, 0)
-            self.assertEqual(len(runner.calls), 0)
+            self.assertEqual(len(runner.calls), 1)
             note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
             self.assertEqual(note["suspected_reason"], "ok")
-            self.assertIn("4. 建议", note["summary"])
-            self.assertIn("pid_count=2", note["summary"])
+            self.assertIn("正常结束", note["summary"])
             doc = load_telemetry(run_dir)
             self.assertTrue(doc.get("job_assist"))
+
+    def test_ok_job_keeps_hints_when_opencode_writes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            write_telemetry(
+                run_dir,
+                summary={
+                    "cpu_avg": 40.0,
+                    "cpu_peak": 55.0,
+                    "exit_code": 0,
+                    "pid_count": 2,
+                    "host_count": 1,
+                },
+                anomalies=[],
+                evidence_paths=["series/h1_pid1.jsonl"],
+                reason_code="ok",
+                retry_allowed=False,
+                attempt=1,
+                extra={"collect_errors": {}},
+            )
+
+            def runner(argv, cwd, timeout, env=None):
+                runner.calls.append(timeout)
+                return 1, "", ""
+
+            runner.calls = []
+            code = run_job_assist(run_dir, opencode_runner=runner, user_exit=0)
+            self.assertEqual(code, 0)
+            self.assertEqual(len(runner.calls), 1)
+            note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
+            self.assertIn("4. 建议", note["summary"])
+            self.assertIn("pid_count=2", note["summary"])
 
     def test_keeps_existing_pack_note(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

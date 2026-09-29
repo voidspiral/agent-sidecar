@@ -14,6 +14,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from agent_sidecar.argv import parse_agent_argv
 from agent_sidecar.cli import cmd_srun, main
@@ -59,7 +60,7 @@ class TestCli(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertIn("--overlap", seen["sidecar"])
             self.assertEqual(seen["user"][0], "srun")
-            self.assertNotIn("--overlap", seen["user"])
+            self.assertEqual(seen["user"][1], "--overlap")
             self.assertIn("true", seen["user"])
             self.assertNotIn("--agent-profile=tools-only", seen["user"])
 
@@ -97,7 +98,7 @@ class TestCli(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertIn("--overlap", seen["sidecar"])
             self.assertIn("proc-monitor,mpi-scan,slurm-tap,node-diag,eth-monitor", seen["sidecar"])
-            self.assertNotIn("--overlap", seen["user"])
+            self.assertEqual(seen["user"][1], "--overlap")
             self.assertNotIn("exec-wrap", seen["user"])
 
             seen.clear()
@@ -172,6 +173,50 @@ class TestCli(unittest.TestCase):
             text = buf.getvalue()
             self.assertIn("[agent] profile=job-assist", text)
             self.assertIn("run_dir=", text)
+
+    def test_verbose_stop_marks_collector_srun(self) -> None:
+        class _Proc:
+            pid = 4242
+
+            def poll(self) -> None:
+                return None
+
+            def wait(self, timeout: float | None = None) -> int:
+                return 0
+
+        with tempfile.TemporaryDirectory() as tmp:
+            parsed = parse_agent_argv(
+                [
+                    "srun",
+                    "--agent-verbose",
+                    "--agent-output-dir",
+                    tmp,
+                    "-n",
+                    "1",
+                    "--",
+                    "true",
+                ]
+            )
+            buf = io.StringIO()
+            with (
+                patch("agent_sidecar.cli.subprocess.Popen", return_value=_Proc()),
+                contextlib.redirect_stdout(buf),
+            ):
+                code = cmd_srun(
+                    parsed,
+                    run_user=lambda _argv: 0,
+                    opencode_runner=noop_opencode,
+                    live_watcher=NoWatch(),
+                    live_plotter=NoPlot(),
+                    tty=False,
+                )
+            self.assertEqual(code, 0)
+            text = buf.getvalue()
+            self.assertIn("[agent] stop sidecar before telemetry (pid=4242)", text)
+            self.assertIn(
+                "[agent] the following CANCELLED/Killed lines are the collector srun, not the user step",
+                text,
+            )
 
     def test_supervisor_and_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

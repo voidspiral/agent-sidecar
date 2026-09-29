@@ -65,10 +65,9 @@ class TestJobAssistProfile(unittest.TestCase):
                 live_plotter=NoPlot(),
             )
             self.assertEqual(code, 0)
-            self.assertEqual(len(runner.calls), 0)
+            self.assertEqual(len(runner.calls), 1)
             note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
-            self.assertIn("4. 建议", note["summary"])
-            self.assertIn("--agent-match", note["summary"])
+            self.assertIn("rank imbalance likely", note["summary"])
             self.assertEqual(note["actions"], [])
             doc = load_telemetry(run_dir)
             self.assertTrue(doc.get("job_assist"))
@@ -168,10 +167,10 @@ class TestJobAssistProfile(unittest.TestCase):
                 )
                 chat.assert_not_called()
             self.assertEqual(code, 0)
-            self.assertEqual(len(runner.calls), 0)
+            self.assertEqual(len(runner.calls), 1)
             self.assertTrue((run_dir / "telemetry.json").is_file())
             note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
-            self.assertIn("4. 建议", note["summary"])
+            self.assertIn("rank imbalance likely", note["summary"])
 
     def test_tools_only_zero_calls(self) -> None:
         runner = _ok()
@@ -223,10 +222,10 @@ class TestJobAssistProfile(unittest.TestCase):
             self.assertEqual(len(seen), 1)
             self.assertIn("--overlap", seen[0])
             self.assertIn("supervisor", seen[0])
-            self.assertEqual(len(runner.calls), 0)
+            self.assertEqual(len(runner.calls), 1)
             self.assertTrue((run_dir / "telemetry.json").is_file())
             note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
-            self.assertIn("4. 建议", note["summary"])
+            self.assertIn("live default assist", note["summary"])
 
     def test_non_tty_starts_watcher_before_user(self) -> None:
         runner = _ok()

@@ -92,8 +92,11 @@ Live OpenCode timeout defaults to 300s (`AGENT_OPENCODE_TIMEOUT`). Wrap
 cancels live OpenCode when the user step ends and promotes `assist/live.json`
 to `assist/job.json` if a live summary exists. Otherwise wrap keeps a pack
 note or writes deterministic resource hints (healthy jobs still include 建议
-from CPU/RSS/IO/ethernet and pid counts) and does **not** spawn post-job
-OpenCode unless `AGENT_OPENCODE_FINAL_TIMEOUT` is a positive number.
+from CPU/RSS/IO/ethernet and pid counts). A normal completion
+(`reason_code=ok`, no tool anomalies) spawns one post-job OpenCode.
+`AGENT_OPENCODE_FINAL_TIMEOUT=0` skips that call. A positive value also
+runs OpenCode after fault jobs. If OpenCode writes no note, the
+deterministic 建议 is kept.
 `agent analy --llm` may still run OpenCode.
 
 `proc-monitor` imports `mpi_monitor.collect.collect_loop`. `eth-monitor`

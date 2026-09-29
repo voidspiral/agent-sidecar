@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_sidecar.opencode_assist import (
+    DEFAULT_TIMEOUT,
     _record_job_assist_success,
     note_summary,
     run_opencode_assist,
@@ -108,8 +109,22 @@ def run_job_assist(
     if promote_live_assist(run_dir):
         return user_exit
     budget = final_assist_timeout(timeout, env)
-    force_llm = budget is not None and budget > 0
     run_dir = Path(run_dir)
+    doc_now = load_telemetry(run_dir)
+    healthy = str(doc_now.get("reason_code") or "") == "ok" and not (doc_now.get("anomalies") or [])
+    explicit_off = budget is not None and budget <= 0
+    if explicit_off:
+        force_llm = False
+        llm_budget = 0.0
+    elif budget is not None and budget > 0:
+        force_llm = True
+        llm_budget = budget
+    elif healthy:
+        force_llm = True
+        llm_budget = DEFAULT_TIMEOUT
+    else:
+        force_llm = False
+        llm_budget = 0.0
     note_path = run_dir / "assist" / "job.json"
     if not force_llm:
         existing = note_summary(note_path)
@@ -133,13 +148,18 @@ def run_job_assist(
         user_exit=user_exit,
         opencode_runner=opencode_runner,
         repo_root=repo_root,
-        timeout=budget,
+        timeout=llm_budget,
         env=env,
         include_analysis=include_analysis,
     )
-    if pack_backup and not note_summary(note_path):
-        note_path.parent.mkdir(parents=True, exist_ok=True)
-        note_path.write_text(pack_backup, encoding="utf-8")
-        doc = load_telemetry(run_dir)
-        _record_job_assist_success(run_dir, doc, note_summary(note_path))
+    if not note_summary(note_path):
+        if pack_backup:
+            note_path.parent.mkdir(parents=True, exist_ok=True)
+            note_path.write_text(pack_backup, encoding="utf-8")
+            doc = load_telemetry(run_dir)
+            _record_job_assist_success(run_dir, doc, note_summary(note_path))
+        else:
+            from agent_sidecar.analysis.resource_hints import write_resource_hints_note
+
+            write_resource_hints_note(run_dir)
     return code

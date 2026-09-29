@@ -29,15 +29,15 @@ When wrapping `srun`, the CLI MUST start at most one supervisor per allocated no
 - **THEN** the CLI MUST NOT emit `srun bash -c '… & exec …'` as the user step
 
 ### Requirement: Overlap step is the default injector with exec-wrapper fallback
-The CLI SHALL start an extra SLURM step with `--overlap --ntasks-per-node=1` and an explicit CPU/memory bound for the supervisor. The user `srun` argv SHALL stay as the user passed it; the CLI MUST NOT insert `--overlap` or any other flag into that step. `--agent-overlap` remains accepted and does not change that default. If the overlap step is rejected or fails before the user command starts, the CLI SHALL stop the overlap step and fall back once to an exec-wrapper that forks a collector then execs the user binary in the same task. A node-assist agent MUST NOT be started once per rank in the exec-wrapper fallback.
+The CLI SHALL start an extra SLURM step with `--overlap --ntasks-per-node=1` and an explicit CPU/memory bound for the supervisor. On an `OverSubscribe=EXCLUSIVE` partition the user step SHALL also be launched with `srun --overlap` prepended, because SLURM will not create a second step on a node that already hosts one unless that step sets `--overlap`, even when CPUs remain. No other flag is inserted into the user argv. `--agent-overlap` remains accepted and does not change that default. If the overlap step is rejected or fails before the user command starts, the CLI SHALL stop the overlap step and fall back once to an exec-wrapper that forks a collector then execs the user binary in the same task. A node-assist agent MUST NOT be started once per rank in the exec-wrapper fallback.
 
 #### Scenario: Default srun overlaps
 - **WHEN** the user runs `agent srun` without `--agent-overlap`
-- **THEN** the CLI starts one supervisor step with `--ntasks-per-node=1` and a memory bound before the user step, and the user step argv is the original `srun` plus the user's arguments
+- **THEN** the CLI starts one supervisor step with `--ntasks-per-node=1` and a memory bound before the user step, and the user step is `srun --overlap` followed by the user's original arguments
 
 #### Scenario: Overlap supervisor on each node
 - **WHEN** the allocation allows overlapping steps
-- **THEN** the CLI starts one supervisor step with `--overlap --ntasks-per-node=1` and a memory bound before the user step, and does not rewrite the user `srun`
+- **THEN** the CLI starts one supervisor step with `--overlap --ntasks-per-node=1` and a memory bound before the user step, and the user step also passes `--overlap` so an exclusive partition accepts the second step
 
 #### Scenario: Exec-wrapper fallback
 - **WHEN** the overlap step fails because overlap is disabled

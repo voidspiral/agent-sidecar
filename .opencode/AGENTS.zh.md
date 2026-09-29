@@ -13,8 +13,10 @@
 若已有 `assist/live.json` 摘要，wrap 将其提升为 `assist/job.json`
 （`suspected_reason` 抄自 `reason_code`）。否则若 pack 已写 `assist/job.json`
 则保留；再否则根据 `telemetry.json` 的 summary 写确定性分条笔记（**健康作业
-也必须有建议**：CPU/RSS/IO/以太网与 pid 计数）。默认 wrap 不 spawn 期末
-OpenCode；仅当 `AGENT_OPENCODE_FINAL_TIMEOUT` 为正数时才跑 wrap OpenCode。
+也必须有建议**：CPU/RSS/IO/以太网与 pid 计数）。正常结束（`reason_code=ok`
+且无工具异常）会跑一次期末 OpenCode。`AGENT_OPENCODE_FINAL_TIMEOUT=0` 跳过
+这次调用。正数超时在故障作业结束后也会跑 OpenCode。模型没写出笔记时，保留
+确定性分条建议。
 `agent analy --llm` 仍可跑 OpenCode。若你在写最终笔记，请写 `assist/job.json`。计算节点 sidecar 只做确定性工具（`proc-monitor`、
 `mpi-scan`、`slurm-tap`、`node-diag`、`eth-monitor`）。不要刮取 `/proc`。不要在计算节点
 启动 OpenCode。不要调用 `scancel` 或 `scontrol`。不要覆盖 `reason_code`。
