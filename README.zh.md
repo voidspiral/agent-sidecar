@@ -54,7 +54,7 @@ sidecar.sh --agent-output-dir ./runs srun -N 2 -n 4 ./app
 | `--agent-profile` | `job-assist`（默认）、`tools-only`（无 OpenCode）、`node-assist` |
 | `--agent-skills` | 节点 sidecar 加载的工具，逗号分隔 |
 | `--agent-output-dir` | run 目录的父路径（或设 `AGENT_JOB_DIR`） |
-| `--agent-overlap` | 测试时打开 overlap supervisor；默认关闭。该步失败或作业结束则停掉并回退 |
+| `--agent-overlap` | 显式打开 overlap supervisor（默认已打开）。该步失败或作业结束则停掉并回退 |
 | `--agent-verbose` | 打印 overlap sidecar / 用户 step 的启动过程 |
 | `--agent-quiet` | 只打关键步骤，结束时写出紧凑 `report.txt`（header、job-assist、metrics、hosts、证据计数；也可用 `AGENT_QUIET=1`） |
 | `--agent-node-llm` | 可选节点模型；记录为不支持 |
@@ -161,9 +161,9 @@ OpenCode skills：`.opencode/skills/`（索引见 [.opencode/skills.md](.opencod
 `agent supervisor`、`agent report --run-dir DIR`、
 `agent deploy --mpi-monitor DIR --eth-monitor DIR`（同步到 `/shared`）。
 
-默认不注入 overlap，用户 `srun` 单独一步。测试时加 `--agent-overlap` 才起
-每节点 1 个 supervisor（`--mem=256M`）。该步在用户命令启动前失败，或作业结束时，
-停掉 overlap 并回退一次 exec-wrapper。
+默认注入 overlap step（每节点 1 个 supervisor，`--overlap --exact --mem=256M`）。
+用户原始 `srun` 参数保持不变，不插入 `--overlap`。该步在用户命令启动前失败，
+或作业结束时，停掉 overlap 并回退一次 exec-wrapper。`--agent-overlap` 与默认相同。
 
 ## 已实现的 skills
 

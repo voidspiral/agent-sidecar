@@ -220,7 +220,9 @@ class TestJobAssistProfile(unittest.TestCase):
             )
             self.assertEqual(code, 0)
             self.assertEqual(parsed.options.profile, "job-assist")
-            self.assertEqual(seen, [])
+            self.assertEqual(len(seen), 1)
+            self.assertIn("--overlap", seen[0])
+            self.assertIn("supervisor", seen[0])
             self.assertEqual(len(runner.calls), 0)
             self.assertTrue((run_dir / "telemetry.json").is_file())
             note = json.loads((run_dir / "assist" / "job.json").read_text(encoding="utf-8"))
@@ -254,7 +256,7 @@ class TestJobAssistProfile(unittest.TestCase):
                 live_watcher=watch,
                 tty=False,
             )
-            self.assertEqual(timeline, [])
+            self.assertEqual(timeline, ["sidecar"])
             self.assertEqual(watch.order, ["start", "user", "stop"])
 
     def test_tty_prints_attach_hint_without_stealing_srun(self) -> None:

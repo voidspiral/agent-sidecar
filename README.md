@@ -114,7 +114,7 @@ python3 -m agent_sidecar deploy --mpi-monitor /path/to/mpi-monitor --eth-monitor
 The tool rsyncs this repo to `/shared/agent-sidecar`, mpi-monitor to
 `/shared/mpi-monitor`, and eth-monitor to `/shared/eth-monitor`, then prints
 `AGENT_MPI_MONITOR_SRC`, `AGENT_ETH_MONITOR_SRC`, and `PYTHONPATH`.
-`agent srun --agent-overlap` injects those paths for the overlap supervisor; you do not need
+`agent srun` injects those paths for the overlap supervisor by default; you do not need
 to export `PYTHONPATH` for wrapped jobs. Missing mpi-monitor or eth-monitor
 is fail-soft (`events/mpi_monitor_import.err`, `events/eth_monitor_import.err`).
 

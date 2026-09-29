@@ -28,19 +28,19 @@ When wrapping `srun`, the CLI MUST start at most one supervisor per allocated no
 - **WHEN** injecting collectors for a multi-rank `srun`
 - **THEN** the CLI MUST NOT emit `srun bash -c '… & exec …'` as the user step
 
-### Requirement: Overlap injection is opt-in with exec-wrapper fallback
-The CLI SHALL launch the user `srun` without an overlap supervisor unless `--agent-overlap` is set. When that flag is set, the CLI SHALL start an extra SLURM step with `--overlap --ntasks-per-node=1` and an explicit CPU/memory bound for the supervisor. If that overlap step is rejected or fails before the user command starts, the CLI SHALL stop the overlap step and fall back once to an exec-wrapper that forks a collector then execs the user binary in the same task. A node-assist agent MUST NOT be started once per rank in the exec-wrapper fallback.
+### Requirement: Overlap step is the default injector with exec-wrapper fallback
+The CLI SHALL start an extra SLURM step with `--overlap --ntasks-per-node=1` and an explicit CPU/memory bound for the supervisor. The user `srun` argv SHALL stay as the user passed it; the CLI MUST NOT insert `--overlap` or any other flag into that step. `--agent-overlap` remains accepted and does not change that default. If the overlap step is rejected or fails before the user command starts, the CLI SHALL stop the overlap step and fall back once to an exec-wrapper that forks a collector then execs the user binary in the same task. A node-assist agent MUST NOT be started once per rank in the exec-wrapper fallback.
 
-#### Scenario: Default srun does not overlap
+#### Scenario: Default srun overlaps
 - **WHEN** the user runs `agent srun` without `--agent-overlap`
-- **THEN** the CLI does not emit `srun --overlap` and launches only the user step
+- **THEN** the CLI starts one supervisor step with `--ntasks-per-node=1` and a memory bound before the user step, and the user step argv is the original `srun` plus the user's arguments
 
 #### Scenario: Overlap supervisor on each node
-- **WHEN** the user passes `--agent-overlap` and the allocation allows overlapping steps
-- **THEN** the CLI starts one supervisor step with `--ntasks-per-node=1` and a memory bound before the user step
+- **WHEN** the allocation allows overlapping steps
+- **THEN** the CLI starts one supervisor step with `--overlap --ntasks-per-node=1` and a memory bound before the user step, and does not rewrite the user `srun`
 
 #### Scenario: Exec-wrapper fallback
-- **WHEN** `--agent-overlap` is set and the overlap step fails because overlap is disabled
+- **WHEN** the overlap step fails because overlap is disabled
 - **THEN** the CLI does not leave the overlap step running and retries once with exec-wrapper injection for tools only, recording the fallback in telemetry
 
 ### Requirement: Sidecars follow job lifetime
@@ -94,17 +94,26 @@ MUST NOT replace the user command exit code.
   user command's code
 
 ### Requirement: agent analy subcommand
-The CLI SHALL accept `agent analy` with required `--run-dir` and optional
-`--code` and `--llm`. The subcommand MUST run on the submit/login host
-only, MUST NOT start overlap supervisors, and MUST exit non-zero on
-missing run directory.
+The CLI SHALL accept `agent analy` with required `--log DIR` or
+`--run-dir DIR` (aliases for the same sidecar run directory) and optional
+`--code`, `--llm`, and `--no-llm`. If both `--log` and `--run-dir` are
+set to different paths, the CLI MUST exit non-zero. The subcommand MUST
+run on the submit/login host only, MUST NOT start overlap supervisors,
+and MUST exit non-zero on a missing run directory.
 
-#### Scenario: analy requires run-dir
-- **WHEN** the user runs `agent analy` without `--run-dir`
+#### Scenario: analy requires log or run-dir
+- **WHEN** the user runs `agent analy` without `--log` and without
+  `--run-dir`
 - **THEN** the CLI exits non-zero with an error on stderr
 
+#### Scenario: analy --log is the run directory
+- **WHEN** the user runs `agent analy --log DIR` and `DIR` is a sidecar
+  run directory
+- **THEN** analysis uses that directory as the run tree
+
 #### Scenario: analy does not start sidecars
-- **WHEN** `agent analy --run-dir DIR` runs successfully
+- **WHEN** `agent analy --log DIR` or `agent analy --run-dir DIR` runs
+  successfully
 - **THEN** no compute-node supervisor process is started for that
   invocation
 
@@ -163,3 +172,95 @@ include `eth-monitor`.
 - **WHEN** the user omits `--agent-skills`
 - **THEN** supervisor skills include `eth-monitor` in addition to
   proc-monitor, mpi-scan, slurm-tap, and node-diag
+
+### Requirement: Login-host sidecar.sh and sidecar-analy.sh
+The repository SHALL ship executable login-host scripts `scripts/sidecar.sh`
+and `scripts/sidecar-analy.sh`. Each MUST set `PYTHONPATH` to the tree's
+`src/` directory and MUST exec `python3 -m agent_sidecar` without rewriting
+SLURM argv. `sidecar.sh` MUST prefix the remaining argv as a launcher
+subcommand (`srun`, `sbatch`, or `salloc`). `sidecar-analy.sh` MUST invoke
+the `analy` subcommand. Neither script MUST start compute-node sidecars by
+itself beyond what the wrapped CLI already does for `srun`. Deploy output
+MUST print the `/shared/agent-sidecar/scripts/` paths for both scripts.
+
+#### Scenario: sidecar.sh wraps srun
+- **WHEN** the operator runs `sidecar.sh srun -N 2 -n 4 -- ./app`
+- **THEN** the CLI receives `srun` plus the passthrough SLURM/user argv
+  and does not receive the script path as a SLURM argument
+
+#### Scenario: sidecar-analy.sh wraps analy
+- **WHEN** the operator runs `sidecar-analy.sh --log DIR --code PATH`
+- **THEN** the CLI runs `analy` with those flags on the submit host and
+  starts no additional overlap supervisor beyond the wrapped command
+
+### Requirement: sidecar.sh defaults to job-assist
+When `sidecar.sh` launches a wrap command and the operator omitted
+`--agent-profile`, the system SHALL default the profile to `job-assist`
+(node tools plus submit-host OpenCode on tool artifacts). Explicit
+`--agent-profile=tools-only` MUST skip wrap-time OpenCode. `sidecar-analy.sh`
+is the source-authorized root-cause path (`--code`) and MUST NOT replace
+the wrap-time job-assist note for a healthy job.
+
+#### Scenario: sidecar.sh omit profile is job-assist
+- **WHEN** `sidecar.sh srun -- ./app` runs with no `--agent-profile`
+- **THEN** tool sidecars start and wrap-time OpenCode runs after telemetry
+
+#### Scenario: sidecar.sh explicit tools-only
+- **WHEN** `sidecar.sh srun --agent-profile=tools-only -- ./app` runs
+- **THEN** wrap-time OpenCode is not launched
+
+### Requirement: Sidecar flags precede the SLURM launcher
+The wrap CLI SHALL accept known `--agent-*` flags before the launcher
+word (`srun`, `sbatch`, or `salloc`) and MUST NOT forward those flags to
+SLURM. `sidecar.sh [--agent-*] srun <slurm> <user>` is the preferred
+operator form. The same leading-flag grammar MUST work for
+`python3 -m agent_sidecar`. Known `--agent-*` immediately after the
+launcher MUST remain accepted. An unrecognized `--agent-*` MUST still
+fail closed before launching SLURM.
+
+#### Scenario: Flags on sidecar.sh before srun
+- **WHEN** the operator runs `sidecar.sh --agent-verbose srun -n 2 /path/app`
+- **THEN** SLURM receives `-n 2 /path/app` (or equivalent) and does not
+  receive `--agent-verbose`
+
+#### Scenario: Module CLI leading flags
+- **WHEN** the operator runs `python3 -m agent_sidecar --agent-profile=tools-only srun -n 1 ./app`
+- **THEN** the profile is `tools-only` and SLURM passthrough is `-n 1 ./app`
+
+#### Scenario: Trailing agent flags still work
+- **WHEN** the operator runs `sidecar.sh srun --agent-verbose -n 1 hostname`
+- **THEN** verbose is enabled and SLURM receives `-n 1 hostname`
+
+#### Scenario: Unknown leading agent flag fails closed
+- **WHEN** the operator runs `sidecar.sh --agent-nope srun -n 1 hostname`
+- **THEN** the CLI exits non-zero with an error on stderr before launching SLURM
+
+### Requirement: End-of-options dash-dash is optional
+When the user command does not begin with `-`, the wrap CLI MUST accept
+passthrough without a `--` separator. If `--` is present in the SLURM
+passthrough, the CLI MUST forward it to SLURM. Public operator docs MUST
+omit `--` for absolute-path example binaries.
+
+#### Scenario: Absolute path without dash-dash
+- **WHEN** the operator runs `sidecar.sh srun -n 2 /shared/agent-sidecar/examples/mpi_io_load 15 /shared/mpi-io 0`
+- **THEN** SLURM passthrough is `-n 2` plus that binary and its arguments,
+  and does not require `--`
+
+#### Scenario: Operator-supplied dash-dash is forwarded
+- **WHEN** the operator runs `sidecar.sh srun -n 1 -- python3 -c 'print(1)'`
+- **THEN** SLURM receives the `--` token in passthrough
+
+### Requirement: Wrap and analy route mpi_segfault pack
+When wrap or `agent analy` sees tool/rollup `reason_code=mpi_segfault`,
+deterministic analysis MUST select pack `mpi_segfault` (not `generic` /
+`stub`). The segfault demo script MUST document expected
+`reason_code=mpi_segfault` and `pid_count>0` after a short busy window.
+
+#### Scenario: Pack selection for mpi_segfault
+- **WHEN** telemetry `reason_code` is `mpi_segfault`
+- **THEN** `select_pack` / `run_analysis` uses pack name `mpi_segfault`
+
+#### Scenario: Demo documents expectations
+- **WHEN** an operator runs the MPI segfault demo script
+- **THEN** the script states expected `mpi_segfault` and sampled
+  `pid_count>0`

@@ -59,7 +59,7 @@ class AgentOptions:
     match: str | None = None
     interval: float = 1.0
     live_plot_cli: bool | None = None
-    overlap: bool = False
+    overlap: bool = True
 
 
 @dataclass

@@ -23,8 +23,12 @@ item. `suspected_reason` MUST copy `reason_code`. `actions` MUST be `[]`.
 - **THEN** `assist/job.json` exists, OpenCode is not spawned, and `summary`
   contains a numbered 建议 line derived from CPU/RSS/IO/ethernet peaks
 
-#### Scenario: Exit 0 with zero PIDs still advises match
-- **WHEN** wrap completes with user exit 0 and `pid_count=0`
+#### Scenario: Exit 0 with zero PIDs and overlap off
+- **WHEN** wrap completes with user exit 0, `pid_count=0`, and launch `mode=user`
+- **THEN** the 建议 item states the overlap supervisor was not injected, and does not mention `--agent-match` or PYTHONPATH
+
+#### Scenario: Exit 0 with zero PIDs after overlap
+- **WHEN** wrap completes with user exit 0, `pid_count=0`, and launch `mode` is `overlap` or `exec-wrapper`
 - **THEN** the 建议 item mentions `--agent-match` or collector import / PYTHONPATH
 
 #### Scenario: Ethernet disclaimer

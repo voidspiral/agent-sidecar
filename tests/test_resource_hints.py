@@ -40,10 +40,11 @@ class TestResourceHints(unittest.TestCase):
         self.assertIn("cpu_peak=55", text)
         self.assertNotIn("{", text)
 
-    def test_exit_zero_no_pids_advises_match(self) -> None:
+    def test_exit_zero_no_pids_without_overlap_is_not_a_fault(self) -> None:
         text = chinese_summary(
             {
                 "reason_code": "ok",
+                "mode": "user",
                 "anomalies": [],
                 "summary": {
                     "exit_code": 0,
@@ -53,7 +54,26 @@ class TestResourceHints(unittest.TestCase):
                 },
             }
         )
-        self.assertIn("4. 建议", text)
+        self.assertIn("未开启进程采集", text)
+        self.assertIn("未注入 overlap supervisor", text)
+        self.assertNotIn("PYTHONPATH", text)
+        self.assertNotIn("--agent-match", text)
+
+    def test_exit_zero_no_pids_after_overlap_advises_match(self) -> None:
+        text = chinese_summary(
+            {
+                "reason_code": "ok",
+                "mode": "overlap",
+                "anomalies": [],
+                "summary": {
+                    "exit_code": 0,
+                    "host_count": 0,
+                    "pid_count": 0,
+                    "cpu_peak": None,
+                },
+            }
+        )
+        self.assertIn("未采到用户 PID", text)
         self.assertIn("--agent-match", text)
 
     def test_low_cpu_peak_with_pids(self) -> None:

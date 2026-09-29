@@ -57,10 +57,10 @@ class TestCli(unittest.TestCase):
             )
             code = cmd_srun(parsed, run_sidecar=run_sidecar, run_user=run_user, live_plotter=NoPlot())
             self.assertEqual(code, 0)
-            self.assertNotIn("sidecar", seen)
+            self.assertIn("--overlap", seen["sidecar"])
             self.assertEqual(seen["user"][0], "srun")
-            self.assertIn("true", seen["user"])
             self.assertNotIn("--overlap", seen["user"])
+            self.assertIn("true", seen["user"])
             self.assertNotIn("--agent-profile=tools-only", seen["user"])
 
     def test_agent_overlap_opens_then_falls_back(self) -> None:
@@ -97,6 +97,7 @@ class TestCli(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertIn("--overlap", seen["sidecar"])
             self.assertIn("proc-monitor,mpi-scan,slurm-tap,node-diag,eth-monitor", seen["sidecar"])
+            self.assertNotIn("--overlap", seen["user"])
             self.assertNotIn("exec-wrap", seen["user"])
 
             seen.clear()
@@ -139,7 +140,7 @@ class TestCli(unittest.TestCase):
                 )
             self.assertEqual(code, 0)
             text = buf.getvalue()
-            self.assertNotIn("[agent] sidecar started", text)
+            self.assertIn("[agent] sidecar started", text)
             self.assertIn("[agent] user step started", text)
             self.assertIn("======== agent report ========", text)
             self.assertNotIn("passthrough=", text)

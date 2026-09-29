@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from pathlib import Path
@@ -19,7 +20,11 @@ def _fmt(value: Any) -> str:
     return str(value)
 
 
-def suggestion_clauses(summary: dict[str, Any]) -> list[str]:
+def _collecting(mode: str | None) -> bool:
+    return mode in {"overlap", "exec-wrapper"}
+
+
+def suggestion_clauses(summary: dict[str, Any], *, mode: str | None = None) -> list[str]:
     pid_count = int(summary.get("pid_count") or 0)
     exit_code = summary.get("exit_code")
     cpu_peak = summary.get("cpu_peak")
@@ -28,7 +33,9 @@ def suggestion_clauses(summary: dict[str, Any]) -> list[str]:
     eth_rx = summary.get("eth_rx_bps_peak")
     eth_tx = summary.get("eth_tx_bps_peak")
     out: list[str] = []
-    if pid_count == 0:
+    if pid_count == 0 and not _collecting(mode):
+        out.append("未注入 overlap supervisor，不采集进程，pid_count=0 不是采集失败")
+    elif pid_count == 0:
         out.append(
             "未采到用户进程，请检查 --agent-match、PYTHONPATH 与 events/mpi_monitor_import.err"
         )
@@ -60,7 +67,13 @@ def chinese_summary(doc: dict[str, Any]) -> str:
     reason = str(doc.get("reason_code") or "ok")
     anomalies = doc.get("anomalies") or []
     pid_count = int(summary.get("pid_count") or 0)
-    started = "已采到用户进程" if pid_count > 0 else "未采到用户 PID"
+    mode = str(doc.get("mode") or "")
+    if pid_count > 0:
+        started = "已采到用户进程"
+    elif _collecting(mode):
+        started = "未采到用户 PID"
+    else:
+        started = "未开启进程采集"
     exit_code = summary.get("exit_code")
     items = [
         f"1. 结论：reason_code={reason}，exit_code={_fmt(exit_code)}，{started}。",
@@ -82,7 +95,7 @@ def chinese_summary(doc: dict[str, Any]) -> str:
         items.append(f"3. 异常：{codes or '见 telemetry anomalies'}。")
     else:
         items.append("3. 异常：无工具异常。")
-    items.append("4. 建议：" + "；".join(suggestion_clauses(summary)))
+    items.append("4. 建议：" + "；".join(suggestion_clauses(summary, mode=mode)))
     return "\n".join(items)
 
 
@@ -91,6 +104,14 @@ def write_resource_hints_note(run_dir: Path) -> Path:
     from agent_sidecar.telemetry import load_telemetry
 
     doc = load_telemetry(run_dir)
+    meta_path = Path(run_dir) / "meta.json"
+    if meta_path.is_file():
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            meta = {}
+        if isinstance(meta, dict) and meta.get("mode"):
+            doc["mode"] = meta["mode"]
     summary = chinese_summary(doc)
     _record_job_assist_success(run_dir, doc, summary)
     return run_dir / "assist" / "job.json"
