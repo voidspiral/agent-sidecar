@@ -16,6 +16,7 @@
   <p id="status">loading…</p>
     <div class="chart"><canvas id="cpu_pct"></canvas></div>
     <div class="chart"><canvas id="rss_mb"></canvas></div>
+    <p id="io-gap" class="hint" hidden></p>
     <div class="chart"><canvas id="io_read_bps"></canvas></div>
     <div class="chart"><canvas id="io_write_bps"></canvas></div>
     <div class="chart"><canvas id="eth_rx_bps"></canvas></div>
@@ -123,6 +124,17 @@
       });
       return m;
     }
+    function ioGapText(unavail) {
+      const u = unavail || [];
+      const parts = [];
+      if (u.indexOf("io") >= 0) {
+        parts.push("未采集 IO：内核未提供 /proc/<pid>/io（CONFIG_TASK_IO_ACCOUNTING 未开启）");
+      }
+      if (u.indexOf("io_permission") >= 0) {
+        parts.push("未采集 IO：无权限读 /proc/<pid>/io");
+      }
+      return parts.join(" ");
+    }
     function applySnapshot(snap) {
       overlayMarkers = snap.markers || [];
       const markerMax = overlayMarkers.reduce((m, item) => Math.max(m, item.x || 0), 0);
@@ -144,6 +156,10 @@
         chart.options.scales.x.suggestedMax = Math.max(seriesXMax(series), markerMax);
         chart.update();
       });
+      const gap = document.getElementById("io-gap");
+      const gapText = ioGapText(snap.unavailable);
+      gap.hidden = !gapText;
+      gap.textContent = gapText;
       document.getElementById("status").textContent =
         "cap " + (snap.visible_cap || "") + " · series " +
         ((snap.metrics && snap.metrics.cpu_pct && snap.metrics.cpu_pct.length) || 0) +

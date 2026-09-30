@@ -15,6 +15,15 @@ MAX_POINTS = 900
 VISIBLE_CAP = 48
 
 
+def _append_point(store: list[list[float]], ts: float, rec: dict[str, Any], key: str) -> None:
+    if key not in rec or rec[key] is None:
+        return
+    try:
+        store.append([ts, float(rec[key])])
+    except (TypeError, ValueError):
+        return
+
+
 def series_label(host: str, pid: int, rank: int | None) -> str:
     if rank is not None:
         return f"{host} r{rank}"
@@ -33,6 +42,7 @@ class LivePlotIngest:
         self._eth_rows: dict[tuple[str, str], dict[str, Any]] = {}
         self._t0: float | None = None
         self._markers: list[dict[str, Any]] = []
+        self._unavailable: set[str] = set()
 
     def poll(self) -> dict[str, Any]:
         series = self.run_dir / "series"
@@ -124,7 +134,13 @@ class LivePlotIngest:
                     "evidence_path": rec.get("evidence_path") or "",
                 }
             )
-        return {"t0": t0, "visible_cap": VISIBLE_CAP, "metrics": grouped, "markers": markers}
+        return {
+            "t0": t0,
+            "visible_cap": VISIBLE_CAP,
+            "metrics": grouped,
+            "markers": markers,
+            "unavailable": sorted(self._unavailable),
+        }
 
     def _ingest_file(self, path: Path, *, kind: str) -> None:
         key = str(path)
@@ -179,10 +195,12 @@ class LivePlotIngest:
         )
         if rank is not None:
             slot["rank"] = rank
-        slot["cpu"].append([ts, float(rec.get("cpu_pct") or 0.0)])
-        slot["rss"].append([ts, float(rec.get("rss_mb") or 0.0)])
-        slot["io_r"].append([ts, float(rec.get("io_read_bps") or 0.0)])
-        slot["io_w"].append([ts, float(rec.get("io_write_bps") or 0.0)])
+        for gap in rec.get("unavailable") or []:
+            self._unavailable.add(str(gap))
+        _append_point(slot["cpu"], ts, rec, "cpu_pct")
+        _append_point(slot["rss"], ts, rec, "rss_mb")
+        _append_point(slot["io_r"], ts, rec, "io_read_bps")
+        _append_point(slot["io_w"], ts, rec, "io_write_bps")
         for name in ("cpu", "rss", "io_r", "io_w"):
             if len(slot[name]) > MAX_POINTS:
                 slot[name] = slot[name][-MAX_POINTS:]

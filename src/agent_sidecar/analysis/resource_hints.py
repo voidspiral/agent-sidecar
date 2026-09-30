@@ -50,6 +50,13 @@ def suggestion_clauses(summary: dict[str, Any]) -> list[str]:
             )
     if eth_rx is not None or eth_tx is not None:
         out.append("以太网峰值是主机 NIC 速率，不是 MPI 消息字节")
+    unavailable = [str(item) for item in (summary.get("unavailable") or [])]
+    if "io" in unavailable:
+        out.append(
+            "未采集 IO：内核未提供 /proc/<pid>/io（CONFIG_TASK_IO_ACCOUNTING 未开启），不是作业没有 I/O"
+        )
+    elif "io_permission" in unavailable:
+        out.append("未采集 IO：无权限读 /proc/<pid>/io")
     if not out:
         out.append("采样正常，可保持当前 srun 与 --interval")
     return out
@@ -77,6 +84,11 @@ def chinese_summary(doc: dict[str, Any]) -> str:
             f"eth_tx_bps_peak={_fmt(summary.get('eth_tx_bps_peak'))}。"
         ),
     ]
+    unavailable = [str(item) for item in (summary.get("unavailable") or [])]
+    if "io" in unavailable:
+        items[1] += "未采集 IO：内核未提供 /proc/<pid>/io（CONFIG_TASK_IO_ACCOUNTING 未开启）。"
+    elif "io_permission" in unavailable:
+        items[1] += "未采集 IO：无权限读 /proc/<pid>/io。"
     if anomalies:
         codes = ",".join(str(a.get("reason_code") or "") for a in anomalies if isinstance(a, dict))
         items.append(f"3. 异常：{codes or '见 telemetry anomalies'}。")

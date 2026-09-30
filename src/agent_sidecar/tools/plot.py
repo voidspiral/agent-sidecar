@@ -112,6 +112,20 @@ def _plot_net(run_dir: Path, *, net_plotter=None) -> list[Path]:
     return list(eth_plot(run_dir, writer=marker_chart_writer(load_markers(run_dir))))
 
 
+def metric_series(rows: list[dict[str, Any]], metric: str) -> tuple[list[Any], list[float]]:
+    xs: list[Any] = []
+    ys: list[float] = []
+    for row in rows:
+        if metric not in row or row[metric] is None:
+            continue
+        try:
+            ys.append(float(row[metric]))
+        except (TypeError, ValueError):
+            continue
+        xs.append(row["ts"])
+    return xs, ys
+
+
 def _default_plotter(jsonl_path: Path, charts_dir: Path) -> list[Path]:
     try:
         import matplotlib
@@ -126,14 +140,16 @@ def _default_plotter(jsonl_path: Path, charts_dir: Path) -> list[Path]:
             rows.append(json.loads(line))
     if not rows:
         return []
-    xs = [r["ts"] for r in rows]
     markers = load_markers(jsonl_path.parent.parent)
     out: list[Path] = []
     for metric in ("cpu_pct", "rss_mb", "io_read_bps", "io_write_bps"):
+        metric_xs, metric_ys = metric_series(rows, metric)
+        if not metric_ys:
+            continue
         dest = charts_dir / f"{jsonl_path.stem}_{metric}.png"
         fig, ax = plt.subplots()
-        ax.plot(xs, [r.get(metric, 0) for r in rows])
-        annotate_chart(ax, xs, markers)
+        ax.plot(metric_xs, metric_ys)
+        annotate_chart(ax, metric_xs, markers)
         fig.savefig(dest)
         plt.close(fig)
         out.append(dest)
