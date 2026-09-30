@@ -12,4 +12,4 @@
 
 ## 3. Cluster check
 
-- [ ] 3.1 On mn (not WSL), set `NPB_MPI_ROOT`, build, and run the demo; verify `reason_code=mpi_segfault` and stderr contains the marker after CG has iterated past the first steps
+- [x] 3.1 On mn (not WSL), set `NPB_MPI_ROOT`, build, and run the demo; verify `reason_code=mpi_segfault` and stderr contains the marker after CG has iterated past the first steps

@@ -6,12 +6,20 @@ Defines which intelligence runs beside a SLURM job: deterministic node tools by 
 
 ## Requirements
 
-### Requirement: Default profile is tools-only
-When `--agent-profile` is omitted, the system SHALL run `tools-only`: per-node supervisors and tools, no LLM, and no node-assist process. `--agent-profile` MUST accept `tools-only`, `node-assist`, and `job-assist`.
+### Requirement: Default profile is job-assist
+When `--agent-profile` is omitted, the system SHALL run `job-assist`: per-node
+supervisors and tools plus submit-host OpenCode. `--agent-profile` MUST accept
+`tools-only`, `node-assist`, and `job-assist`. `--agent-profile=tools-only`
+SHALL run node tools only and MUST NOT start OpenCode.
 
-#### Scenario: Omitted profile is tools-only
+#### Scenario: Omitted profile is job-assist
 - **WHEN** the user runs `agent srun --agent-skills=proc-monitor -- ./app`
-- **THEN** only tool sidecars start; no node-agent and no job-agent LLM is launched
+- **THEN** tool sidecars start and submit-host OpenCode (live watcher and/or
+  final note) is attempted; no per-node model is launched
+
+#### Scenario: Explicit tools-only skips OpenCode
+- **WHEN** the user runs `agent srun --agent-profile=tools-only -- ./app`
+- **THEN** only tool sidecars start; the OpenCode runner is not invoked
 
 #### Scenario: Invalid profile fails closed
 - **WHEN** `--agent-profile=clusterhelm` or another unknown value is passed
@@ -33,11 +41,16 @@ Profile `node-assist` SHALL start at most one assist agent per job id and host. 
 - **THEN** a second agent MUST NOT start
 
 ### Requirement: Job-assist is a single allocation-wide consumer
-Profile `job-assist` SHALL start at most one job-level assist agent for the allocation (submit host, batch script head, or `SLURM_NODEID=0`). That agent MUST consume aggregated `JobTelemetry`, not raw per-sample JSONL as the primary input.
+Profile `job-assist` SHALL start at most one job-level assist agent for the
+allocation (submit host, batch script head, or `SLURM_NODEID=0`). That agent
+MUST consume tool summaries and events during the job and aggregated
+`JobTelemetry` after wrap, not raw per-sample JSONL as the primary input.
+Live OpenCode ticks MUST run only when tool anomalies exist.
 
 #### Scenario: One job-agent for two nodes
 - **WHEN** `--agent-profile=job-assist` is used on a two-node allocation
-- **THEN** exactly one job-assist process runs and it receives the aggregated telemetry document
+- **THEN** exactly one job-assist process runs and it receives artifact
+  snapshots then the aggregated telemetry document
 
 ### Requirement: Combined profiles do not double-retry
 When node-assist and job-assist both run, only the job-assist agent or the submit-side CLI MAY initiate a retry. Node-assist MUST NOT retry the user command.
@@ -58,33 +71,43 @@ Tool supervisors SHALL request a documented small CPU and memory bound (at most 
 - **THEN** the node-agent process is signaled and does not remain after the bounded join
 
 ### Requirement: Job-assist invokes the model once on the submit host
-When `--agent-profile=job-assist` is set, the system SHALL start at most one
-job-level assist after aggregated `JobTelemetry` exists. That assist MUST run
-on the submitting CLI host (login node) or the documented allocation head, not
-once per compute node, and MUST issue at most one model call per wrap attempt.
+When job-assist is active (the default, or `--agent-profile=job-assist`), the
+system SHALL start at most one job-level assist on the submitting CLI host
+(login node) or the documented allocation head, not once per compute node. It
+MUST NOT issue an OpenAI-compatible HTTP chat from wrap. Live ticks run only
+when tool anomalies exist. A final note still follows the OpenCode timeout
+rules below. Live ticks plus one final note count as that single assist
+agent, not as per-node models.
 
 #### Scenario: One model call for a multi-node job
 - **WHEN** `--agent-profile=job-assist` wraps a two-node allocation and LLM
   credentials are present
-- **THEN** exactly one model request is issued after telemetry is written
+- **THEN** OpenCode runs only on the submit host (live during the job only
+  when tool anomalies exist, and one final note after telemetry when the
+  final-timeout rules allow it) and no chat HTTP request is made
 
 #### Scenario: Tools-only still launches no model
-- **WHEN** `--agent-profile` is omitted or is `tools-only`
-- **THEN** no job-assist model HTTP request is made
+- **WHEN** `--agent-profile` is `tools-only`
+- **THEN** no job-assist model HTTP request is made and OpenCode is not started
 
 ### Requirement: Job-assist invokes OpenCode once on the submit host
-When `--agent-profile=job-assist` is set, the system SHALL start at most one
-job-level assist after aggregated `JobTelemetry` exists. That assist MUST run
-on the submitting CLI host, not once per compute node. By default the assist
-MUST be a deterministic `assist/job.json` write (live promote, pack note, or
-resource hints) and MUST NOT spawn OpenCode. A positive
-`AGENT_OPENCODE_FINAL_TIMEOUT` MAY spawn at most one OpenCode per wrap
-attempt. Wrap MUST NOT issue an OpenAI-compatible HTTP chat.
+When job-assist is active (the default, or `--agent-profile=job-assist`), the
+system SHALL start at most one job-level OpenCode assist on the submitting CLI
+host, not once per compute node. That assist SHALL run a live watcher while
+the user step is running and SHALL issue one final note after aggregated
+`JobTelemetry` exists when final-timeout rules allow it. The live watcher
+MUST invoke OpenCode only when tool anomalies exist. A normal completion
+(`reason_code=ok` and no tool anomalies) SHALL spawn one final OpenCode
+invocation when `AGENT_OPENCODE_FINAL_TIMEOUT` is unset.
+`AGENT_OPENCODE_FINAL_TIMEOUT=0` MUST skip that final call. A positive
+timeout SHALL also run OpenCode after fault jobs. It MUST NOT issue an
+OpenAI-compatible HTTP chat from wrap.
 
-#### Scenario: Default job-assist wrap has no OpenCode
-- **WHEN** `--agent-profile=job-assist` wraps a two-node allocation without
-  `AGENT_OPENCODE_FINAL_TIMEOUT`
-- **THEN** the OpenCode runner is not invoked and `assist/job.json` exists
+#### Scenario: One OpenCode call for a multi-node job
+- **WHEN** `--agent-profile=job-assist` wraps a two-node allocation
+- **THEN** a submit-host OpenCode watcher is active during the user step and
+  one final OpenCode note runs after `telemetry.json` is written when the
+  final-timeout rules allow it
 
 #### Scenario: Tools-only still launches no model
 - **WHEN** `--agent-profile` is `tools-only`

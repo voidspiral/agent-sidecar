@@ -78,11 +78,13 @@ The report MUST NOT list every PNG path under `charts/`.
 - **THEN** the report does not print an empty collect_errors object
 
 ### Requirement: Wrap-time telemetry is complete before assist
-After sidecars stop and before any job-assist model call, the launch host SHALL
-write `JobTelemetry` whose `summary` includes peak and average CPU, peak RSS,
-IO totals or rates, host count, and sampled pid count as numbers or documented
-nulls when series exist or are empty. `anomalies` MUST include tool events.
-`reason_code` MUST come from classification, not from a model.
+After sidecars stop, the launch host SHALL write `JobTelemetry` whose `summary`
+includes peak and average CPU, peak RSS, IO totals or rates, host count, and
+sampled pid count as numbers or documented nulls when series exist or are
+empty. `anomalies` MUST include tool events. `reason_code` MUST come from
+classification, not from a model. The live watcher MAY run on partial
+summaries before this document exists. The final OpenCode note MUST run only
+after this wrap-time document is written.
 
 #### Scenario: Series populate numeric summary
 - **WHEN** at least one process series exists at wrap end
@@ -91,7 +93,8 @@ nulls when series exist or are empty. `anomalies` MUST include tool events.
 
 #### Scenario: Tool events become anomalies before the model
 - **WHEN** a tool emitted `mpi_abort` and job-assist is enabled
-- **THEN** `anomalies` contains `mpi_abort` before the model is invoked
+- **THEN** `anomalies` contains `mpi_abort` before the final OpenCode note is
+  invoked
 
 ### Requirement: reason_code rollup prefers MPI-specific codes
 `rollup_reason_code` SHALL pick a primary `reason_code` by a fixed priority list, not by `events/` filename order. MPI-specific codes (`mpi_abort`, `mpi_segfault`, `mpi_fpe`, `mpi_deadlock`) MUST outrank `timeout` and `slurm_failed`. `slurm_oom`, `node_local`, and `node_fail` MUST still outrank generic `execution_error`.
@@ -111,7 +114,8 @@ RSS, IO totals or rates, host count, and sampled pid count as numbers or
 documented nulls. When series files exist, optional PNG charts MUST be written
 under `charts/` when a plotter is available; missing matplotlib MUST skip PNG
 and keep JSONL. `evidence_paths` MUST list series and any written charts.
-`reason_code` MUST come from classification, not from a model.
+`reason_code` MUST come from classification, not from a model. Live watcher
+ticks MAY occur before charts exist.
 
 #### Scenario: Series populate numeric summary
 - **WHEN** at least one process series exists at wrap end
@@ -203,3 +207,37 @@ increment `pid_count`.
 #### Scenario: Ethernet peaks null when no net series
 - **WHEN** only process JSONL exists
 - **THEN** `eth_rx_bps_peak` and `eth_tx_bps_peak` are null
+
+### Requirement: Anomalies MAY include first-seen timestamps
+When chart-marker JSONL exists for a run, `JobTelemetry.anomalies` entries
+for `mpi_abort`, `mpi_segfault`, `slurm_oom`, and `node_local` SHALL include
+optional `ts` copied from the matching first-seen marker. Runs without marker
+files MUST keep the previous anomaly dict shape (no required `ts`). Marker
+presence MUST NOT change `reason_code` rollup order.
+
+#### Scenario: Marker ts merges onto abort anomaly
+- **WHEN** `events/stderr.tail` classifies `mpi_abort` and a submit marker
+  exists for that code and evidence path
+- **THEN** the telemetry anomaly for `mpi_abort` includes the marker `ts`
+  and `reason_code` remains `mpi_abort`
+
+#### Scenario: Old run without markers omits ts
+- **WHEN** `events/` has classified artifacts but no `*_markers.jsonl`
+- **THEN** `anomalies_from_artifacts` still returns reason codes and
+  evidence paths and MUST NOT require a `ts` field
+
+#### Scenario: Rollup order unchanged by ts
+- **WHEN** both `mpi_abort` and `slurm_oom` artifacts exist
+- **THEN** `reason_code` is still the first classified anomaly in the
+  existing artifact-scan order, not the numerically earliest `ts`
+
+### Requirement: Live assist notes may appear before telemetry.json
+During the user step, job-assist MAY write incremental files under `assist/`
+(for example a live log or snapshot note). Those files MUST NOT replace
+`reason_code`. After wrap, `telemetry.json` remains the authoritative
+`JobTelemetry` document.
+
+#### Scenario: Live note does not replace reason_code
+- **WHEN** the live watcher writes under `assist/` before wrap-time telemetry
+- **THEN** the later `telemetry.json` `reason_code` still comes from tools and
+  is not overwritten by the live note

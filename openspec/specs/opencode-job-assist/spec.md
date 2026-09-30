@@ -13,16 +13,19 @@ must not mutate SLURM.
 ## Requirements
 
 ### Requirement: Job-assist spawns OpenCode once after telemetry
-When `--agent-profile=job-assist` is set, wrap SHALL write a submit-host
-`JobAssistNote` after aggregated `JobTelemetry` exists. A normal completion
-(`reason_code=ok` and no tool anomalies) SHALL spawn one OpenCode invocation
-on the submitting CLI host when `AGENT_OPENCODE_FINAL_TIMEOUT` is unset.
+When job-assist is active (the default, or `--agent-profile=job-assist`), the
+system SHALL run a live OpenCode watcher on the submitting CLI host during
+the user step and SHALL spawn one final OpenCode invocation after aggregated
+`JobTelemetry` exists when the timeout rules below allow it. The live watcher
+MUST invoke OpenCode only when tool anomalies exist. A normal completion
+(`reason_code=ok` and no tool anomalies) SHALL spawn one final OpenCode
+invocation when `AGENT_OPENCODE_FINAL_TIMEOUT` is unset.
 `AGENT_OPENCODE_FINAL_TIMEOUT=0` MUST skip that call and keep the
 deterministic note. A positive timeout SHALL also run OpenCode after fault
 jobs. If OpenCode writes no summary, wrap MUST keep or write the
 deterministic note. The invocation MUST use the repository as its working
-project. Unit tests MUST inject a runner and MUST NOT execute a real
-`opencode` binary.
+project so standing instructions and skills load. Unit tests MUST inject a
+runner and MUST NOT execute a real `opencode` binary.
 
 #### Scenario: Default healthy wrap runs OpenCode
 - **WHEN** `--agent-profile=job-assist` wraps a job with `reason_code=ok`,
@@ -38,6 +41,29 @@ project. Unit tests MUST inject a runner and MUST NOT execute a real
 #### Scenario: Tools-only does not spawn OpenCode
 - **WHEN** `--agent-profile` is `tools-only`
 - **THEN** the OpenCode runner is not invoked
+
+#### Scenario: One OpenCode spawn for a multi-node job
+- **WHEN** `--agent-profile=job-assist` wraps a two-node allocation
+- **THEN** a live OpenCode watcher is started with the user step and one
+  final OpenCode runner call is made after `telemetry.json` is written when
+  the final-timeout rules allow it
+
+### Requirement: Live OpenCode uses auto only without a TTY
+When wrap has no TTY, live and final OpenCode MUST use non-interactive
+`--auto` and MUST NOT read operator prompts from stdin. When wrap has a TTY,
+live OpenCode SHALL allow interactive questions without taking over the user
+`srun` PMI stdin. The live runner argv uses `--auto`; a TTY session prints
+an attach hint instead of placing OpenCode on the user step stdin.
+
+#### Scenario: Scripted wrap uses auto
+- **WHEN** job-assist wrap runs without a TTY
+- **THEN** OpenCode is invoked with `--auto` and wrap does not wait on stdin
+  for a chat prompt
+
+#### Scenario: Interactive wrap does not feed OpenCode into user srun
+- **WHEN** job-assist wrap runs on a TTY
+- **THEN** the user `srun` stdin is not the OpenCode chat and the operator can
+  still converse with the live session (including via a printed attach path)
 
 ### Requirement: Prompt is the telemetry contract plus write-note instructions
 The OpenCode prompt MUST include `summary`, `anomalies`, `reason_code`, and

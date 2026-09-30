@@ -31,7 +31,7 @@ MATCH="$(basename "$BIN")"
 echo "binary=$BIN match=$MATCH"
 echo
 
-salloc -N2 -n2 -w cn1,cn3 -p test bash -lc "
+salloc -N2 -n2 -w cn[1-2] -p test bash -lc "
 set -u
 export PYTHONPATH='$PYTHONPATH'
 export PYTHONUNBUFFERED=1
