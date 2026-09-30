@@ -71,6 +71,20 @@ class TestNodeDiagParse(unittest.TestCase):
         self.assertIn("mn", lines[0])
         self.assertEqual(parse_fs_hang("all ranks completed\n"), [])
 
+    def test_parse_fs_hang_matches_other_shared_storage_kernels(self) -> None:
+        samples = [
+            "LustreError: 11-0: mn-OST0000-osc: Request sent has timed out for slow reply",
+            "Lustre: mn-OST0001-osc-ffff: Connection to 10.0.0.2@tcp was lost; in progress operations using this service will wait for recovery to complete",
+            "LustreError: 167-0: This client was evicted by mn-OST0000",
+            "LNetError: 123:0:(lib-move.c:1) no route to 10.0.0.3@tcp",
+            "mmfs: Error=MMFS_DISCONNECTED, ID=0x1",
+            "beegfs-client: metadata: waiting for connection, timed out",
+        ]
+        for line in samples:
+            self.assertEqual(parse_fs_hang(line + "\n"), [line], line)
+        self.assertEqual(parse_fs_hang("Lustre: Client mn-client has mounted\n"), [])
+        self.assertEqual(parse_fs_hang("nfs: server mn OK\n"), [])
+
     def test_parse_proc_cgroup_and_find_job(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

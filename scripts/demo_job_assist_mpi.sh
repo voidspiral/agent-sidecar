@@ -1,5 +1,5 @@
 #!/bin/bash
-# Submit-host job-assist + MPI IO then CPU on NFS /shared. Run on mn.
+# Submit-host job-assist + MPI IO then CPU on shared storage /shared. Run on mn.
 set -u
 SHARED="${AGENT_SHARED:-/shared}"
 ROOT="${1:-$SHARED/agent-sidecar}"
@@ -29,7 +29,7 @@ command -v python3
 python3 -c "import agent_sidecar; print('agent_sidecar', agent_sidecar.__version__)"
 echo
 
-echo "======== 1. build MPI IO load on NFS ========"
+echo "======== 1. build MPI IO load on shared storage ========"
 MPICC="${MPICC:-}"
 if [[ -z "$MPICC" ]]; then
   if command -v mpicc >/dev/null 2>&1; then
@@ -58,7 +58,7 @@ echo \"SLURM_JOB_ID=\$SLURM_JOB_ID\"
 echo \"SLURM_NODELIST=\$SLURM_NODELIST\"
 echo \"opencode_model=\${AGENT_OPENCODE_MODEL:-default}\"
 echo
-echo \"======== 2b. NFS visible on ranks ========\"
+echo \"======== 2b. shared storage visible on ranks ========\"
 srun -N3 -n3 -l bash -c 'hostname -s; df -h $SHARED; ls -l $BIN; test -x $BIN'
 echo
 echo \"======== 2c. agent srun job-assist + mpi_io_load ${SECONDS_IO}s IO + ${SECONDS_CPU}s CPU on $WORK ========\"

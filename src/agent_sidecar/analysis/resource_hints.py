@@ -46,7 +46,7 @@ def suggestion_clauses(summary: dict[str, Any]) -> list[str]:
         peak = float(cpu_peak) if cpu_peak is not None else 0.0
         if peak < CPU_HIGH:
             out.append(
-                "IO 相对突出，注意共享存储路径与 Lustre 条带，勿编造未采集的 OST 数据"
+                "IO 相对突出，注意共享存储路径，勿编造未采集的存储细节"
             )
     if eth_rx is not None or eth_tx is not None:
         out.append("以太网峰值是主机 NIC 速率，不是 MPI 消息字节")

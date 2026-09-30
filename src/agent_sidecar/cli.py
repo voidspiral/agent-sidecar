@@ -356,7 +356,7 @@ def cmd_deploy(argv: list[str]) -> int:
 
     p = argparse.ArgumentParser(
         prog="agent deploy",
-        description="Rsync this sidecar plus mpi-monitor and eth-monitor trees onto NFS /shared.",
+        description="Rsync this sidecar plus mpi-monitor and eth-monitor trees onto shared storage /shared.",
     )
     p.add_argument(
         "--mpi-monitor",
@@ -375,7 +375,7 @@ def cmd_deploy(argv: list[str]) -> int:
         help="mpi-monitor then eth-monitor dirs (scripts/deploy_shared.sh)",
     )
     p.add_argument("--sidecar", type=Path, default=None, help="agent-sidecar tree")
-    p.add_argument("--shared", type=Path, default=None, help="NFS prefix (default /shared)")
+    p.add_argument("--shared", type=Path, default=None, help="shared storage prefix (default /shared)")
     p.add_argument("--dry-run", action="store_true", help="print paths, do not copy")
     try:
         ns = p.parse_args(argv)

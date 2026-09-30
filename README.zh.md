@@ -81,7 +81,7 @@ python3 -m agent_sidecar srun -N 2 -n 4 ./app
 
 `proc-monitor` 会 `import mpi_monitor.collect.collect_loop`，`eth-monitor` 会
 `import eth_monitor.collect.collect_loop`。把 sidecar、**mpi-monitor** 和
-**eth-monitor** 三棵源码树放到 NFS。默认路径 `/shared/mpi-monitor/src` 与
+**eth-monitor** 三棵源码树放到共享存储。默认路径 `/shared/mpi-monitor/src` 与
 `/shared/eth-monitor/src`，可用 `AGENT_MPI_MONITOR_SRC` /
 `AGENT_ETH_MONITOR_SRC` 覆盖。
 
@@ -124,9 +124,9 @@ OpenCode；若已有 `assist/live.json` 摘要则提升为 `assist/job.json`。
 `AGENT_OPENCODE_FINAL_TIMEOUT` 设为正数才恢复 wrap OpenCode。
 `agent analy --llm` 仍可跑模型。
 
-MPI 示例见 `examples/mpi_io_load.c`：每 rank 先约 60 秒 NFS 写/fsync/读，
+MPI 示例见 `examples/mpi_io_load.c`：每 rank 先约 60 秒共享存储写/fsync/读，
 再 30 秒本地 CPU burn（`mpi_io_load [io_seconds] [work_dir] [cpu_seconds]`；
-第三参数传 `0` 则跳过 CPU）。本集群 NFS 挂在
+第三参数传 `0` 则跳过 CPU）。本集群共享存储挂在
 `/shared`（`mn:/shared`）。源码、二进制、IO scratch 和 run 产物都放这里，
 各节点同一份文件：
 
@@ -144,7 +144,7 @@ bash /shared/agent-sidecar/scripts/demo_opencode_launch_fail.sh
 ```
 
 作业把每 rank 文件写到 `/shared/mpi-io`（可用 `AGENT_MPI_WORKDIR` 覆盖）。
-OpenCode 凭据留在登录节点 OpenCode 自己的配置里，不上 NFS、不进本仓库。
+OpenCode 凭据留在登录节点 OpenCode 自己的配置里，不上共享存储、不进本仓库。
 
 常驻说明放在工具目录（作业协助 LLM 是 OpenCode，Cursor 只做本地调试）：
 `.opencode/AGENTS.md`、`.opencode/agent/job-assist.md`、
@@ -193,10 +193,10 @@ job-assist 在登录节点加载，用来解读工具产物，不在计算节点
 |-------|--------|
 | [mpi-monitor](.opencode/skills/mpi-monitor/SKILL.md) | 解读 `series/` 的 CPU/RSS/IO 与 `charts/` 路径；空 series 时区分采集失败与作业未启动 |
 | [eth-monitor](.opencode/skills/eth-monitor/SKILL.md) | 解读主机以太网与可选 PID TCP：`series/{host}_net.jsonl` / `{host}_pid{pid}_net.jsonl`；不是 MPI 流量 |
-| [launch-fail](.opencode/skills/launch-fail/SKILL.md) | `reason_code=execution_error` 且 `pid_count=0`（ENOENT / 二进制不在 NFS） |
+| [launch-fail](.opencode/skills/launch-fail/SKILL.md) | `reason_code=execution_error` 且 `pid_count=0`（ENOENT / 二进制不在共享存储） |
 | [mpi-abort](.opencode/skills/mpi-abort/SKILL.md) | `reason_code=mpi_abort` 或 `assist/analysis.json` 的 pack=`mpi_abort` |
 | [mpi-segfault](.opencode/skills/mpi-segfault/SKILL.md) | `reason_code=mpi_segfault` 或 `assist/analysis.json` 的 pack=`mpi_segfault` |
-| [node-diag](.opencode/skills/node-diag/SKILL.md) | `reason_code=node_local` 或 `events/node-diag.txt` 出现作业内 OOM / cgroup `oom_kill` / NFS hang |
+| [node-diag](.opencode/skills/node-diag/SKILL.md) | `reason_code=node_local` 或 `events/node-diag.txt` 出现作业内 OOM / cgroup `oom_kill` / 共享存储 hang |
 
 离线分析分 **两阶段**，且**默认走 OpenCode**：（1）不带 `--code`：只根据
 产物给现象与假设，并索要源码；（2）带 `--code`：仅引用用户授权树内的命中。
@@ -229,7 +229,7 @@ bash /shared/agent-sidecar/scripts/demo_mpi_segfault.sh
 
 联调用四台节点：`mn`、`cn1`、`cn2`、`cn3`。单元测试不依赖集群。
 
-当前演示树（从 `mn` 发起；本集群用 NFS `/shared`，不必再 tar 到 cn）：
+当前演示树（从 `mn` 发起；本集群用共享存储 `/shared`，不必再 tar 到 cn）：
 
 | 用途 | 路径 |
 |------|------|
