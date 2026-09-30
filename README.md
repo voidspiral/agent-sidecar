@@ -98,7 +98,7 @@ OpenCode unless `AGENT_OPENCODE_FINAL_TIMEOUT` is a positive number.
 
 `proc-monitor` imports `mpi_monitor.collect.collect_loop`. `eth-monitor`
 imports `eth_monitor.collect.collect_loop`. Deploy **all three** trees onto
-NFS so every compute node can import them. Default Python paths are
+shared storage so every compute node can import them. Default Python paths are
 `/shared/mpi-monitor/src` (`AGENT_MPI_MONITOR_SRC`) and
 `/shared/eth-monitor/src` (`AGENT_ETH_MONITOR_SRC`).
 
@@ -135,10 +135,10 @@ bash /shared/agent-sidecar/scripts/sidecar.sh serve --run-dir /shared/agent-runs
 `--agent-no-live-plot` or `AGENT_LIVE_PLOT=0` skips the server. Bind failure is
 fail-soft (`collect_errors.live_plot`) and does not change the user exit code.
 
-An MPI sample lives in `examples/mpi_io_load.c`: ~60s NFS write/fsync/read
+An MPI sample lives in `examples/mpi_io_load.c`: ~60s shared-storage write/fsync/read
 per rank, then a 30s local CPU burn (`mpi_io_load [io_seconds] [work_dir]
 [cpu_seconds]`; pass `0` as the third argument to skip CPU). The test cluster
-exports NFS at `/shared` (`mn:/shared`). Place the tree, binary, IO scratch,
+exports shared storage at `/shared` (`mn:/shared`). Place the tree, binary, IO scratch,
 and run output there so every node sees the same files:
 
 ```bash
@@ -156,7 +156,7 @@ bash /shared/agent-sidecar/scripts/demo_opencode_launch_fail.sh
 
 The sample writes per-rank files under `/shared/mpi-io` (override with
 `AGENT_MPI_WORKDIR`). OpenCode credentials stay in OpenCode's login-host
-config, not in this repo and not on NFS.
+config, not in this repo and not on shared storage.
 
 Standing instructions live in tool directories (OpenCode is the job-assist
 LLM; Cursor is local debug): `.opencode/AGENTS.md`,
@@ -201,10 +201,10 @@ nodes. Full index: [.opencode/skills.md](.opencode/skills.md).
 |-------|-------------|
 | [mpi-monitor](.opencode/skills/mpi-monitor/SKILL.md) | Interpret CPU/RSS/IO from `series/` and `charts/` paths; empty series vs start failure |
 | [eth-monitor](.opencode/skills/eth-monitor/SKILL.md) | Interpret host ethernet and optional PID TCP from `series/{host}_net.jsonl` / `{host}_pid{pid}_net.jsonl`; not MPI traffic |
-| [launch-fail](.opencode/skills/launch-fail/SKILL.md) | `reason_code=execution_error` and `pid_count=0` (ENOENT / binary not on NFS) |
+| [launch-fail](.opencode/skills/launch-fail/SKILL.md) | `reason_code=execution_error` and `pid_count=0` (ENOENT / binary not on shared storage) |
 | [mpi-abort](.opencode/skills/mpi-abort/SKILL.md) | `reason_code=mpi_abort` or `assist/analysis.json` pack `mpi_abort` |
 | [mpi-segfault](.opencode/skills/mpi-segfault/SKILL.md) | `reason_code=mpi_segfault` or `assist/analysis.json` pack `mpi_segfault` |
-| [node-diag](.opencode/skills/node-diag/SKILL.md) | `reason_code=node_local` or `events/node-diag.txt` shows in-job OOM / cgroup `oom_kill` / NFS hang |
+| [node-diag](.opencode/skills/node-diag/SKILL.md) | `reason_code=node_local` or `events/node-diag.txt` shows in-job OOM / cgroup `oom_kill` / shared-storage hang |
 
 Offline analysis is **two phases** and defaults to OpenCode:
 (1) without `--code` — symptoms + ask for source; (2) with `--code` — cite

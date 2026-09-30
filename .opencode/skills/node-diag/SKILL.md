@@ -52,8 +52,11 @@ Permission denied on `dmesg`/`/dev/kmsg` is a collect error, not a job fault.
    per-rank RSS. Keep `suspected_reason` as `node_local`.
 3. If `slurm-tap` also has `slurm_oom`, say both: accounting OOM and node
    killer evidence. Do not replace `reason_code`.
-4. If `fs_hang_lines>=1`: NFS or hung-task signal. Check the shared path
-   (`/shared`, `AGENT_MPI_WORKDIR`), not CPU/IO imbalance.
+4. If `fs_hang_lines>=1`: shared-storage hang or hung-task signal. The quoted
+   kernel line may be NFS (`nfs: server ... not responding`), Lustre
+   (`LustreError`, connection lost, client evicted, request timed out),
+   GPFS (`mmfs: Error`), or BeeGFS. Call it shared storage in the note.
+   Check the shared path (`/shared`, `AGENT_MPI_WORKDIR`), not CPU/IO imbalance.
 5. Missing `node-diag.txt` or only `node_diag.err`: collection failed; do not
    invent an OOM.
 

@@ -25,7 +25,8 @@ Standalone neighbor package `mpi-monitor`. This sidecar imports
 | `pid` | int | matched task PID |
 | `cpu_pct` | float | `/proc/<pid>/stat` utime+stime vs wall |
 | `rss_mb` | float | `VmRSS` |
-| `io_read_bps` / `io_write_bps` | float | `/proc/<pid>/io` deltas |
+| `io_read_bps` / `io_write_bps` | float or null | `/proc/<pid>/io` `read_bytes` / `write_bytes` deltas. `null` means the file was missing or unreadable. `0` means the file existed and the delta was zero. |
+| `unavailable` | list of strings, optional | `io` when `/proc/<pid>/io` is ENOENT (kernel built without `CONFIG_TASK_IO_ACCOUNTING`). `io_permission` when the read is denied. Absent when every present metric was readable. |
 | `rank` | int (optional) | `PMIX_RANK` / `OMPI_COMM_WORLD_RANK` / `PMI_RANK` |
 
 ## Discovery (`--match`)

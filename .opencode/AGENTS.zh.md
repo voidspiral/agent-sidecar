@@ -64,7 +64,7 @@ Live 文件不得替换 wrap 时的 `reason_code`。
 ## 启动失败
 
 若 `reason_code` 为 `execution_error` 且采样到的 `pid_count` 为 0，用户二进制
-很可能从未启动（路径缺失、ENOENT、不在 NFS 上）。用简体中文写清楚，并给出改正后的
+很可能从未启动（路径缺失、ENOENT、不在共享存储上）。用简体中文写清楚，并给出改正后的
 `agent srun` 命令：编译到共享路径，例如
 `/shared/agent-sidecar/examples/mpi_io_load`，在 `--` 之后传入该路径。
 

@@ -37,8 +37,14 @@ CollectLoopFn = Callable[..., None]
 LoopImporter = Callable[[], tuple[CollectLoopFn | None, str | None]]
 
 
+def _nonzero_metric(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value != 0
+
+
 def sample_valid(sample: dict[str, Any]) -> bool:
-    return all(k in sample for k in SAMPLE_KEYS)
+    if not all(k in sample for k in ("ts", "host", "pid")):
+        return False
+    return any(_nonzero_metric(sample.get(key)) for key in SAMPLE_KEYS if key not in ("ts", "host", "pid"))
 
 
 def should_exclude(comm: str, pid: int, collector_pid: int | None) -> bool:

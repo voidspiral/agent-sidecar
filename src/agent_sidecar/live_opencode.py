@@ -74,7 +74,7 @@ def build_live_prompt(
         f"Write {run_dir / 'assist' / 'live.json'} with host=submit, "
         "summary in Simplified Chinese (简体中文), 分条 as a numbered list "
         "(1. 2. 3., one finding per item, not a paragraph): interpret the snapshot "
-        "and include concrete improvement suggestions (srun flags, NFS paths, "
+        "and include concrete improvement suggestions (srun flags, shared-storage paths, "
         "--agent-match, interval) inside summary only. suspected_reason from anomalies if any else ok. "
         "actions MUST be an empty list. "
         "Write that JSON as UTF-8 with raw 简体中文 in summary (not \\uXXXX escapes). "

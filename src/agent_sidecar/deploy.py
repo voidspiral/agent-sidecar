@@ -1,4 +1,4 @@
-"""Copy sidecar + mpi-monitor + eth-monitor trees onto shared NFS."""
+"""Copy sidecar + mpi-monitor + eth-monitor trees onto shared storage."""
 
 from __future__ import annotations
 

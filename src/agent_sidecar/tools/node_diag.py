@@ -20,8 +20,20 @@ OOM_PID_RE = re.compile(
 )
 OOM_KILL_LINE_RE = re.compile(r"(?m)^oom_kill(?:_count)?\s+(\d+)\s*$")
 KMSG_PREFIX_RE = re.compile(r"^\d+,\d+,\d+,[^;]*;(.*)$")
+# Kernel printk text, not a storage-product name we show to users.
+# NFS, Lustre, GPFS (mmfs), and BeeGFS each use their own hang wording.
 FS_HANG_RE = re.compile(
-    r"blocked for more than|hung task|nfs:\s+server\s+\S+\s+not responding|not responding, still trying",
+    r"blocked for more than"
+    r"|hung task"
+    r"|nfs:\s+server\s+\S+\s+not responding"
+    r"|not responding, still trying"
+    r"|LustreError:"
+    r"|LNetError:"
+    r"|Connection to \S+ was lost"
+    r"|This client was evicted"
+    r"|Request sent has timed out"
+    r"|mmfsd?:\s*Error"
+    r"|beegfs(?:-client)?:.*(?:time(?:d\s+)?out|disconnect|not responding|waiting)",
     re.IGNORECASE,
 )
 CGROUP_REL_RE = re.compile(r"^(?:\d+):[^:]*:(.*)$")

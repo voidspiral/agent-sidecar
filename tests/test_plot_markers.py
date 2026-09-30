@@ -105,7 +105,7 @@ class TestPlotMarkers(unittest.TestCase):
                         written = plot_run(run_dir, net_plotter=lambda _r: [])
             self.assertEqual(len(written), 4)
             xs = [call.args[0] for call in fake_ax.axvline.call_args_list]
-            self.assertEqual(xs, [2.0, 2.0, 2.0, 2.0])
+            self.assertEqual(xs, [1.0, 1.0, 1.0, 1.0])
             self.assertNotIn(50.0, xs)
 
     def test_eth_writer_injection_draws_markers(self) -> None:
@@ -162,7 +162,7 @@ class TestPlotMarkers(unittest.TestCase):
                     plot_run(run_dir, plotter=lambda *_a, **_k: [])
             self.assertTrue(callable(captured.get("writer")))
             xs = [call.args[0] for call in fake_ax.axvline.call_args_list]
-            self.assertEqual(xs, [2.0])
+            self.assertEqual(xs, [1.0])
 
     def test_no_markers_skips_axvline(self) -> None:
         ax = mock.Mock()

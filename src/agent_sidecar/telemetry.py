@@ -83,6 +83,11 @@ def summarize_series(run_dir: Path) -> dict[str, Any]:
     rss: list[float] = []
     io_r = 0.0
     io_w = 0.0
+    saw_io_r = False
+    saw_io_w = False
+    null_io_r = False
+    null_io_w = False
+    unavailable: set[str] = set()
     eth_rx: list[float] = []
     eth_tx: list[float] = []
     hosts: set[str] = set()
@@ -97,13 +102,23 @@ def summarize_series(run_dir: Path) -> dict[str, Any]:
                 continue
             rec = json.loads(line)
             hosts.add(str(rec.get("host", "")))
-            if "cpu_pct" in rec:
+            for gap in rec.get("unavailable") or []:
+                unavailable.add(str(gap))
+            if "cpu_pct" in rec and rec["cpu_pct"] is not None:
                 cpu.append(float(rec["cpu_pct"]))
-            if "rss_mb" in rec:
+            if "rss_mb" in rec and rec["rss_mb"] is not None:
                 rss.append(float(rec["rss_mb"]))
             if is_pid or "pid" in rec:
-                io_r += float(rec.get("io_read_bps") or 0)
-                io_w += float(rec.get("io_write_bps") or 0)
+                if "io_read_bps" in rec and rec["io_read_bps"] is None:
+                    null_io_r = True
+                elif "io_read_bps" in rec:
+                    io_r += float(rec["io_read_bps"])
+                    saw_io_r = True
+                if "io_write_bps" in rec and rec["io_write_bps"] is None:
+                    null_io_w = True
+                elif "io_write_bps" in rec:
+                    io_w += float(rec["io_write_bps"])
+                    saw_io_w = True
             if is_net or "iface" in rec:
                 if rec.get("eth_rx_bps") is not None:
                     eth_rx.append(float(rec["eth_rx_bps"]))
@@ -115,8 +130,9 @@ def summarize_series(run_dir: Path) -> dict[str, Any]:
         "cpu_avg": (sum(cpu) / len(cpu)) if cpu else None,
         "cpu_peak": max(cpu) if cpu else None,
         "rss_peak_mb": max(rss) if rss else None,
-        "io_read_bps_sum": io_r,
-        "io_write_bps_sum": io_w,
+        "io_read_bps_sum": io_r if saw_io_r else (None if null_io_r else 0.0),
+        "io_write_bps_sum": io_w if saw_io_w else (None if null_io_w else 0.0),
+        "unavailable": sorted(unavailable),
         "eth_rx_bps_peak": max(eth_rx) if eth_rx else None,
         "eth_tx_bps_peak": max(eth_tx) if eth_tx else None,
     }

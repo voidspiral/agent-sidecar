@@ -1,5 +1,5 @@
 #!/bin/bash
-# Job-assist OpenCode should diagnose a missing NFS binary and suggest a fix.
+# Job-assist OpenCode should diagnose a missing shared-storage binary and suggest a fix.
 # Run on mn. No HTTP fallback.
 set -u
 SHARED="${AGENT_SHARED:-/shared}"

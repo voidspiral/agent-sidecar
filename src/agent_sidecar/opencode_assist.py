@@ -78,7 +78,7 @@ def build_assist_prompt(
         f"Write {run_dir / 'assist' / 'job.json'} immediately with host=submit, "
         "summary in Simplified Chinese (简体中文), 分条 as a numbered list "
         "(1. 2. 3., one finding per item, not a paragraph): interpret the contract "
-        "and include concrete improvement suggestions (srun flags, NFS paths, "
+        "and include concrete improvement suggestions (srun flags, shared-storage paths, "
         "--agent-match, interval) inside summary only. suspected_reason copied from reason_code, "
         "actions as an empty list, and evidence_paths from the contract. "
         "If reason_code is execution_error and pid_count is 0, explain in 简体中文 that the job did not "

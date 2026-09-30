@@ -20,12 +20,12 @@ In `assist/job.json` `summary` (Simplified Chinese / 简体中文; 分条 number
 list; keep the shell command as-is):
 
 1. State that the executable was missing or not visible on the compute nodes.
-2. On this cluster, binaries must live on NFS (`/shared/...`), not only on `mn`
+2. On this cluster, binaries must live on shared storage (`/shared/...`), not only on `mn`
    local disk (`/tmp` or a login-only path).
 3. Give a **corrected** command, for example:
 
 ```bash
-# compile onto NFS
+# compile onto shared storage
 mpicc -O2 -o /shared/agent-sidecar/examples/mpi_io_load \
   /shared/agent-sidecar/examples/mpi_io_load.c
 

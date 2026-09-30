@@ -76,7 +76,7 @@ note. Live files MUST NOT replace wrap-time `reason_code`.
 ## Launch failure
 
 If `reason_code` is `execution_error` and sampled `pid_count` is 0, the user
-binary likely never started (missing path, ENOENT, not on NFS). Say that
+binary likely never started (missing path, ENOENT, not on shared storage). Say that
 in 简体中文 and propose a corrected `agent srun` line: compile to a shared path
 such as `/shared/agent-sidecar/examples/mpi_io_load` and pass that path after
 `--`.

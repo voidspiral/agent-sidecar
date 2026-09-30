@@ -60,7 +60,15 @@ Launchers are never sampled: `srun`, `mpirun`, `mpiexec`, `orted`, `orterun`,
    the binary or mpi-monitor was not on `PYTHONPATH` (`mpi_monitor_import`).
 4. Empty series with `execution_error` and `pid_count=0` is a **start failure**
    — use the launch-fail skill, not an IO/CPU story.
-5. Missing matplotlib: JSONL stays; PNG may be absent. That is not a job fault.
+5. `pid_count>0` with `summary.unavailable` containing `io`, or `io_*_bps_sum`
+   null, means CPU/RSS are valid and IO was not collected. Say that the kernel
+   did not provide `/proc/<pid>/io` (`CONFIG_TASK_IO_ACCOUNTING` is off). Do not
+   call that “the job did no IO” and do not call it a match failure.
+   `unavailable` containing `io_permission` means the collector could not read
+   `io` (permission), not the missing kernel option. A numeric `0` IO rate with
+   no `unavailable` entry means the file existed and the delta was zero.
+6. Missing matplotlib, or a missing IO PNG while CPU/RSS PNGs exist: JSONL
+   stays. That is not a job fault.
    Missing marker files on old runs is also not a job fault.
 
 ## PYTHONPATH
